@@ -27,17 +27,6 @@ packages/
 | Mobile | React Native, Expo, EAS |
 | Shared | Zod, TypeScript path aliases |
 
-## Build Phases
-
-| Phase | Focus |
-|---|---|
-| 0 | Monorepo setup — Bun workspaces, shared config, CI strategy |
-| 1 | Schema design, domain mapping, API contract draft |
-| 2 | `apps/api` — FastAPI scaffold, auth (JWT), R2 integration, Render deploy |
-| 3 | Backend expansion — CRUD routes, background tasks, testing, staging |
-| 4 | `apps/web` — React + Bun, auth flow, file uploads, Vercel deploy |
-| 5 | `apps/mobile` — Expo, native auth, shared package consumption, EAS build |
-
 ## Database
 
 | Table | Contents |
