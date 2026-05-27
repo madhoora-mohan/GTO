@@ -5,5 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "alembic>=1.18.4",
+    "asyncpg>=0.31.0",
+    "datamodel-code-generator>=0.58.0",
     "fastapi[standard]>=0.136.3",
 ]
