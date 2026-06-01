@@ -1,0 +1,1099 @@
+openapi: 3.0.0
+
+info:
+  title: Japanese Learning App API
+  version: 1.0.0
+  description: |
+    Backend API for a Japanese language learning platform.
+    Serves kana, kanji, vocabulary, sentences, and components.
+    Authenticated users can override kanji mnemonics.
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://api.yourdomain.com
+    description: Production
+
+# ─────────────────────────────────────────────────────────────
+# AUTH ARCHITECTURE
+# ─────────────────────────────────────────────────────────────
+#
+# Two-token system:
+#
+#   Access token  — short-lived JWT (15 min). Returned in response
+#                   body on login/register. Client stores in JS memory
+#                   only (never localStorage, never a cookie). Sent as
+#                   Authorization: Bearer header on every protected request.
+#                   Server validates cryptographically — no DB hit.
+#
+#   Refresh token — long-lived JWT (30 days). Stored in DB so it can
+#                   be revoked. Set by server as an HttpOnly cookie
+#                   (JavaScript cannot read it). Browser/native cookie
+#                   handler sends it automatically on /auth/refresh and
+#                   /auth/logout. Never appears in any response body.
+#
+# Proactive refresh (client-side):
+#   Before every request, the client decodes the access token JWT and
+#   checks the exp claim. If expiry is < 5 minutes away, it calls
+#   POST /auth/refresh first, gets a new access token, then proceeds.
+#   This avoids 401 roundtrips entirely in normal operation.
+#
+# App startup:
+#   Web   — memory is wiped on page load. Client calls POST /auth/refresh
+#           immediately. Browser auto-sends the HttpOnly cookie. 200 = restore
+#           session. 401 = no valid cookie, show login screen.
+#   Mobile — client checks native cookie store first. If no cookie,
+#           show login screen immediately (no network call). If cookie
+#           exists, call POST /auth/refresh to restore access token.
+#
+# Cookie settings (server must set):
+#   httponly: true   — JavaScript cannot read it
+#   secure: true     — HTTPS only
+#   samesite: lax    — CSRF protection
+#   max_age: 2592000 — 30 days in seconds
+#
+# CORS (server must set):
+#   allow_credentials: true  — required for cookies to be sent cross-origin
+#   allow_origins: explicit list — cannot use wildcard with credentials
+#
+# Mobile cookie handling:
+#   React Native does not handle cookies automatically like a browser.
+#   Use @react-native-cookies/cookies to bridge to the native OS cookie
+#   store (NSHTTPCookieStorage on iOS, CookieManager on Android).
+#   This is the native OS cookie infrastructure, not SecureStore.
+#   SecureStore is not used here because HttpOnly semantics only apply
+#   in the cookie context — storing in SecureStore would require JS
+#   to read and send the token manually, defeating HttpOnly.
+
+security: []
+
+components:
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Short-lived access token (15 min). Stored in JS memory only.
+        Obtained from login/register response body or refresh response body.
+        Send as Authorization: Bearer <token> header.
+
+  # ───────────────────────────────────────────────────────────
+  # SHARED PARAMETERS
+  # ───────────────────────────────────────────────────────────
+  parameters:
+
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number (1-indexed)
+
+    PageSizeParam:
+      name: page_size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Number of results per page
+
+    JlptParam:
+      name: jlpt
+      in: query
+      schema:
+        type: string
+        enum: [N5, N4, N3, N2, N1]
+      description: Filter by JLPT level
+
+  # ───────────────────────────────────────────────────────────
+  # SCHEMAS
+  # ───────────────────────────────────────────────────────────
+  schemas:
+
+    # ── Generic wrappers ────────────────────────────────────
+
+    ApiError:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+          example: Not found
+        code:
+          type: string
+          example: NOT_FOUND
+
+    PaginatedKana:
+      type: object
+      required: [data, total, page, page_size]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Kana'
+        total:
+          type: integer
+          example: 208
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+
+    PaginatedKanji:
+      type: object
+      required: [data, total, page, page_size]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Kanji'
+        total:
+          type: integer
+          example: 2200
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+
+    PaginatedVocab:
+      type: object
+      required: [data, total, page, page_size]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vocab'
+        total:
+          type: integer
+          example: 10000
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+
+    PaginatedSentence:
+      type: object
+      required: [data, total, page, page_size]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Sentence'
+        total:
+          type: integer
+          example: 50000
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+
+    PaginatedComponent:
+      type: object
+      required: [data, total, page, page_size]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Component'
+        total:
+          type: integer
+          example: 253
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+
+    # ── Auth ────────────────────────────────────────────────
+
+    RegisterInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          minLength: 8
+          example: securepass123
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          minLength: 8
+          example: securepass123
+
+    AuthResponse:
+      type: object
+      required: [access_token, user]
+      description: >
+        Returned on successful login or register.
+        access_token is a short-lived JWT (15 min) — store in JS memory only.
+        refresh_token is NOT in this response body. The server sets it as an
+        HttpOnly cookie automatically. The client never sees or touches it.
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        user:
+          $ref: '#/components/schemas/User'
+
+    RefreshResponse:
+      type: object
+      required: [access_token]
+      description: >
+        Returned on successful token refresh.
+        New access_token — replace the one in memory.
+        The refresh token cookie is automatically rotated by the server
+        (new HttpOnly cookie set in the response).
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+    User:
+      type: object
+      required: [id, email, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T00:00:00Z"
+
+    # ── Kana ────────────────────────────────────────────────
+
+    Kana:
+      type: object
+      required: [character, romaji, type, category]
+      properties:
+        character:
+          type: string
+          example: き
+          description: The kana character — also the primary key
+        romaji:
+          type: string
+          example: ki
+        type:
+          type: string
+          enum: [hiragana, katakana]
+          example: hiragana
+        row:
+          type: string
+          nullable: true
+          example: k
+          description: >
+            Chart row (consonant group). Derived at seed time from romaji + category.
+            Null for yōon characters (きゃ etc.) and ん/ン.
+        col:
+          type: string
+          nullable: true
+          example: i
+          description: >
+            Chart column (vowel). Derived at seed time from the last character of romaji.
+            Null for yōon characters and ん/ン.
+        category:
+          type: string
+          enum: [base, dakuten, handakuten, yoon]
+          example: base
+        katakana_equivalent:
+          type: string
+          nullable: true
+          example: キ
+          description: For hiragana entries — the katakana version
+        hiragana_equivalent:
+          type: string
+          nullable: true
+          example: き
+          description: For katakana entries — the hiragana version
+        mnemonic:
+          type: string
+          nullable: true
+          example: Looks like a key
+        audio_url:
+          type: string
+          nullable: true
+          format: uri
+          example: https://r2.yourdomain.com/audio/kana/ki.mp3
+        stroke_order_svg_url:
+          type: string
+          nullable: true
+          format: uri
+          example: https://r2.yourdomain.com/kanjivg/kana/き.svg
+
+    # ── Component (Radical) ─────────────────────────────────
+
+    Component:
+      type: object
+      required: [id, character, keyword, meaning, stroke_count]
+      properties:
+        id:
+          type: integer
+          example: 1
+        character:
+          type: string
+          example: 木
+        keyword:
+          type: string
+          example: tree
+          description: Short English label used in mnemonic generation
+        meaning:
+          type: string
+          example: Tree or wood
+        stroke_count:
+          type: integer
+          example: 4
+
+    # ── Kanji ───────────────────────────────────────────────
+
+    Kanji:
+      type: object
+      required: [character, unicode_hex, meanings, stroke_count]
+      properties:
+        character:
+          type: string
+          example: 新
+          description: The kanji character — also the primary key
+        unicode_hex:
+          type: string
+          example: 065b0
+          description: Unicode codepoint hex — guaranteed present for all JLPT kanji
+        meanings:
+          type: array
+          items:
+            type: string
+          example: ["new", "neo-"]
+          description: English meanings — guaranteed present for all JLPT kanji
+        onyomi:
+          type: array
+          nullable: true
+          items:
+            type: string
+          example: ["シン"]
+          description: On'yomi readings — nullable, some kanji have only kun'yomi
+        kunyomi:
+          type: array
+          nullable: true
+          items:
+            type: string
+          example: ["あたら.しい", "あら.た"]
+          description: Kun'yomi readings — nullable, some kanji have only on'yomi
+        nanori:
+          type: array
+          nullable: true
+          items:
+            type: string
+          example: ["あらた"]
+          description: Name readings — nullable, only present for kanji used in names
+        jlpt:
+          type: string
+          nullable: true
+          enum: [N5, N4, N3, N2, N1]
+          example: N2
+          description: Nullable at insert time — overlaid from Tanos after initial KANJIDIC2 import
+        grade:
+          type: integer
+          nullable: true
+          example: 2
+          description: Japanese school grade (1–6 elementary, 8 secondary) — nullable, not all JLPT kanji have a school grade
+        stroke_count:
+          type: integer
+          example: 13
+          description: Stroke count — guaranteed present for all JLPT kanji
+        frequency:
+          type: integer
+          nullable: true
+          example: 56
+          description: Frequency rank out of 2500 most-used kanji
+        classical_radical_number:
+          type: integer
+          nullable: true
+          example: 69
+          description: Kangxi radical number from KANJIDIC2
+        classical_radical_char:
+          type: string
+          nullable: true
+          example: 斤
+          description: The actual radical character
+        stroke_order_svg_url:
+          type: string
+          nullable: true
+          format: uri
+          example: https://r2.yourdomain.com/kanjivg/065b0.svg
+        mnemonic:
+          type: string
+          nullable: true
+          example: >
+            A person stands next to a tree and swings an axe —
+            they're clearing land to build something NEW.
+          description: LLM-generated default mnemonic
+        user_mnemonic:
+          type: string
+          nullable: true
+          example: My new axe stands against the tree outside.
+          description: >
+            The authenticated user's personal mnemonic override.
+            Null means the user has not written one — show mnemonic instead.
+            Only present on GET /kanji/{character} (requires auth).
+        components:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/Component'
+          description: >
+            Visual components this kanji is made of.
+            Only included on GET /kanji/{character} (detail view).
+            Not included in list responses for performance.
+        sentences:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/Sentence'
+          description: >
+            Example sentences containing this kanji.
+            Only included on GET /kanji/{character} (detail view).
+            Not included in list responses.
+
+    MnemonicUpdateInput:
+      type: object
+      required: [mnemonic]
+      properties:
+        mnemonic:
+          type: string
+          minLength: 0
+          maxLength: 500
+          example: My new axe stands against the tree outside.
+          description: >
+            The user's personal mnemonic. Send empty string "" to clear it
+            and revert to the LLM default.
+
+    MnemonicUpdateResponse:
+      type: object
+      required: [character, user_mnemonic]
+      properties:
+        character:
+          type: string
+          example: 新
+        user_mnemonic:
+          type: string
+          nullable: true
+          example: My new axe stands against the tree outside.
+
+    # ── Vocab ───────────────────────────────────────────────
+
+    VocabMeaning:
+      type: object
+      properties:
+        pos:
+          type: array
+          items:
+            type: string
+          example: ["v1"]
+          description: Part of speech tags from JMdict
+        definitions:
+          type: array
+          items:
+            type: string
+          example: ["to eat", "to live on"]
+
+    FuriganaSegment:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          example: 食
+        furigana:
+          type: string
+          nullable: true
+          example: た
+          description: Reading for this segment. Null for kana-only segments.
+
+    PitchAccent:
+      type: object
+      properties:
+        pattern:
+          type: string
+          example: LHL
+        position:
+          type: integer
+          example: 2
+        type:
+          type: string
+          example: atamadaka
+
+    Vocab:
+      type: object
+      required: [id, word, reading, meanings]
+      properties:
+        id:
+          type: string
+          example: "1578850"
+          description: JMdict entry sequence number
+        word:
+          type: string
+          example: 食べる
+        reading:
+          type: string
+          example: たべる
+        romaji:
+          type: string
+          nullable: true
+          example: taberu
+        meanings:
+          type: array
+          items:
+            $ref: '#/components/schemas/VocabMeaning'
+        furigana:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/FuriganaSegment'
+        jlpt:
+          type: string
+          nullable: true
+          enum: [N5, N4, N3, N2, N1]
+          example: N5
+        frequency:
+          type: integer
+          nullable: true
+          example: 1
+          description: Raw frequency marker from JMdict (1 = most common)
+        frequency_rank:
+          type: integer
+          nullable: true
+          example: 312
+          description: Frequency rank from Kanjium (1 = most common overall)
+        pitch_accent:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PitchAccent'
+        is_common:
+          type: boolean
+          nullable: true
+          example: true
+          description: True if tagged ichi1/news1/spec1 in JMdict
+        tags:
+          type: object
+          nullable: true
+          example: { "dialect": "kansai", "field": "medicine" }
+          description: JMdict dialect, field, and misc tags
+        sentences:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/Sentence'
+          description: >
+            Example sentences for this word.
+            Only included on GET /vocab/{id} (detail view).
+            Not included in list responses.
+
+    # ── Sentence ────────────────────────────────────────────
+
+    Sentence:
+      type: object
+      required: [id, japanese, english]
+      properties:
+        id:
+          type: integer
+          example: 1234
+          description: Tatoeba sentence ID
+        japanese:
+          type: string
+          example: 私は毎日学校に行きます。
+        english:
+          type: string
+          example: I go to school every day.
+        jlpt:
+          type: string
+          nullable: true
+          enum: [N5, N4, N3, N2, N1]
+          example: N5
+        source:
+          type: string
+          example: tatoeba
+          default: tatoeba
+
+
+# ─────────────────────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────────────────────
+
+paths:
+
+  # ── Auth ─────────────────────────────────────────────────
+  #
+  # Token flow summary:
+  #   register/login → access_token in body + refresh_token as HttpOnly cookie
+  #   refresh        → no body (cookie auto-sent) → new access_token in body
+  #                    server also rotates the refresh_token cookie
+  #   logout         → no body (cookie auto-sent) → 204 + cookie cleared
+  #
+  # Client must use credentials: 'include' on fetch (or equivalent) so
+  # the browser/native cookie handler sends the HttpOnly cookie.
+
+  /auth/register:
+    post:
+      summary: Register a new user
+      description: >
+        Creates a new user account. Returns access_token in body (store in
+        JS memory). Sets refresh_token as HttpOnly cookie (server-managed,
+        client never reads it).
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterInput'
+      responses:
+        '201':
+          description: >
+            Registration successful. access_token in body. refresh_token
+            set as HttpOnly cookie by server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /auth/login:
+    post:
+      summary: Log in with email and password
+      description: >
+        Authenticates a user. Returns access_token in body (store in JS memory).
+        Sets refresh_token as HttpOnly cookie (server-managed, client never reads it).
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+      responses:
+        '200':
+          description: >
+            Login successful. access_token in body. refresh_token set as
+            HttpOnly cookie by server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /auth/refresh:
+    post:
+      summary: Get a new access token
+      description: >
+        No request body. The HttpOnly refresh token cookie is sent automatically
+        by the browser or native cookie handler. Server validates the refresh
+        token against the DB, issues a new access_token in the response body,
+        and rotates the refresh_token cookie (new cookie set, old one invalidated).
+        Client stores the new access_token in memory.
+        Call this proactively when the access token is within 5 minutes of expiry
+        (check the exp claim in the JWT payload) to avoid 401 roundtrips.
+      tags: [auth]
+      responses:
+        '200':
+          description: >
+            New access_token in body. Refresh token cookie also rotated by server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '401':
+          description: Refresh token cookie missing, expired, or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /auth/logout:
+    post:
+      summary: Log out and invalidate the refresh token
+      description: >
+        No request body. The HttpOnly refresh token cookie is sent automatically.
+        Server deletes the refresh token from DB (revokes it) and clears the
+        cookie. Client must also clear the access token from memory.
+      tags: [auth]
+      responses:
+        '204':
+          description: Logged out. Cookie cleared. Clear access token from memory.
+        '401':
+          description: No valid refresh token cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  # ── Kana ─────────────────────────────────────────────────
+
+  /kana:
+    get:
+      summary: List all kana characters
+      tags: [kana]
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [hiragana, katakana]
+          description: Filter by hiragana or katakana
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [base, dakuten, handakuten, yoon]
+          description: Filter by kana category
+      responses:
+        '200':
+          description: Paginated list of kana
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedKana'
+
+  /kana/{character}:
+    get:
+      summary: Get a single kana character
+      tags: [kana]
+      parameters:
+        - name: character
+          in: path
+          required: true
+          schema:
+            type: string
+          example: き
+      responses:
+        '200':
+          description: Kana character detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Kana'
+        '404':
+          description: Character not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  # ── Kanji ─────────────────────────────────────────────────
+
+  /kanji:
+    get:
+      summary: List kanji characters
+      description: Public endpoint. No auth required. Does not include components or sentences.
+      tags: [kanji]
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/JlptParam'
+        - name: grade
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 8
+          description: Filter by Japanese school grade
+        - name: stroke_count
+          in: query
+          schema:
+            type: integer
+          description: Filter by number of strokes
+      responses:
+        '200':
+          description: Paginated list of kanji
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedKanji'
+
+  /kanji/{character}:
+    get:
+      summary: Get a single kanji with full detail
+      description: >
+        Requires auth. Returns the kanji with components, example sentences,
+        and the user's personal mnemonic override (user_mnemonic).
+        user_mnemonic is null if the user has not set one — display mnemonic
+        (the LLM default) instead.
+      tags: [kanji]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: character
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 新
+      responses:
+        '200':
+          description: Kanji detail with components, sentences, and user_mnemonic
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Kanji'
+        '401':
+          description: Missing or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Kanji not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /kanji/{character}/mnemonic:
+    patch:
+      summary: Set or clear the user's personal mnemonic for a kanji
+      description: >
+        Requires auth. Send the mnemonic string to set it. Send empty string ""
+        to clear it and revert to the LLM default (mnemonic field on kanji).
+      tags: [kanji]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: character
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 新
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MnemonicUpdateInput'
+      responses:
+        '200':
+          description: Mnemonic updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MnemonicUpdateResponse'
+        '401':
+          description: Missing or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Kanji not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  # ── Vocab ─────────────────────────────────────────────────
+
+  /vocab:
+    get:
+      summary: List vocabulary words
+      description: Public endpoint. No auth required.
+      tags: [vocab]
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/JlptParam'
+        - name: is_common
+          in: query
+          schema:
+            type: boolean
+          description: Filter to common words only (ichi1/news1/spec1 tagged)
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by word or reading (partial match)
+      responses:
+        '200':
+          description: Paginated list of vocabulary words
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedVocab'
+
+  /vocab/{id}:
+    get:
+      summary: Get a single vocabulary word with example sentences
+      description: Public endpoint. No auth required.
+      tags: [vocab]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "1578850"
+          description: JMdict entry sequence number
+      responses:
+        '200':
+          description: Vocabulary word detail with example sentences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vocab'
+        '404':
+          description: Vocab entry not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  # ── Sentences ─────────────────────────────────────────────
+
+  /sentences:
+    get:
+      summary: List example sentences
+      description: Public endpoint. No auth required.
+      tags: [sentences]
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/JlptParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search within Japanese text (partial match)
+      responses:
+        '200':
+          description: Paginated list of sentences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSentence'
+
+  /sentences/{id}:
+    get:
+      summary: Get a single sentence
+      description: Public endpoint. No auth required.
+      tags: [sentences]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1234
+          description: Tatoeba sentence ID
+      responses:
+        '200':
+          description: Sentence detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sentence'
+        '404':
+          description: Sentence not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  # ── Components (Radicals) ─────────────────────────────────
+
+  /components:
+    get:
+      summary: List all kanji components (radicals)
+      description: Public endpoint. No auth required.
+      tags: [components]
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Paginated list of components
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedComponent'
+
+  /components/{id}:
+    get:
+      summary: Get a single component
+      description: Public endpoint. No auth required.
+      tags: [components]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: Component detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Component'
+        '404':
+          description: Component not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+# ─────────────────────────────────────────────────────────────
+# DEFERRED — DO NOT IMPLEMENT IN PHASE 1
+# ─────────────────────────────────────────────────────────────
+# /study/*  — SRS scheduling and flashcard sessions
+# Design pending. The data model mentions a flashcard table with
+# user_mnemonic, but the full SRS system (SM-2 algorithm, study
+# sessions, review scheduling) needs a separate design session
+# before any schema or endpoint is written.
