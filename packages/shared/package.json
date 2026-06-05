@@ -1,12 +1,19 @@
 {
-  "name": "shared",
+  "name": "@gto/shared",
   "module": "src/index.ts",
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "openapi-typescript": "^7.13.0"
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "scripts": {
+    "generate": "openapi-typescript ../../api-spec.yaml --output src/types/api.generated.ts"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
   }
 }

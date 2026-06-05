@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@gto/shared": "workspace:*",
     "expo": "~56.0.4",
     "expo-status-bar": "~56.0.4",
     "react": "19.2.3",
