@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import Boolean, Integer, String
+from sqlalchemy import Boolean, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,11 +14,8 @@ class Vocab(Base):
     word: Mapped[str] = mapped_column(String, nullable=False)
     reading: Mapped[str] = mapped_column(String, nullable=False)
     romaji: Mapped[Optional[str]] = mapped_column(String)
-    meanings: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    furigana: Mapped[Optional[dict]] = mapped_column(JSONB)
+    meanings: Mapped[list] = mapped_column(JSONB, nullable=False)
+    furigana: Mapped[Optional[list]] = mapped_column(JSONB)
     jlpt: Mapped[Optional[str]] = mapped_column(String)
-    frequency: Mapped[Optional[int]] = mapped_column(Integer)
-    frequency_rank: Mapped[Optional[int]] = mapped_column(Integer)
-    pitch_accent: Mapped[Optional[dict]] = mapped_column(JSONB)
     is_common: Mapped[Optional[bool]] = mapped_column(Boolean)
     tags: Mapped[Optional[dict]] = mapped_column(JSONB)

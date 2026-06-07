@@ -36,3 +36,12 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # local docs
 docs
 apps/*/.venv/
+
+# Python bytecode caches
+__pycache__/
+*.pyc
+
+# raw downloaded source data (dictionaries, corpora, audio archives) —
+# large binary blobs reproducible from documented download sources
+# (see dictionary-data-sources.md); too big to live in git history.
+apps/api/data/

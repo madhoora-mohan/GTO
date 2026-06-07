@@ -540,19 +540,6 @@ components:
           example: た
           description: Reading for this segment. Null for kana-only segments.
 
-    PitchAccent:
-      type: object
-      properties:
-        pattern:
-          type: string
-          example: LHL
-        position:
-          type: integer
-          example: 2
-        type:
-          type: string
-          example: atamadaka
-
     Vocab:
       type: object
       required: [id, word, reading, meanings]
@@ -585,20 +572,6 @@ components:
           nullable: true
           enum: [N5, N4, N3, N2, N1]
           example: N5
-        frequency:
-          type: integer
-          nullable: true
-          example: 1
-          description: Raw frequency marker from JMdict (1 = most common)
-        frequency_rank:
-          type: integer
-          nullable: true
-          example: 312
-          description: Frequency rank from Kanjium (1 = most common overall)
-        pitch_accent:
-          nullable: true
-          allOf:
-            - $ref: '#/components/schemas/PitchAccent'
         is_common:
           type: boolean
           nullable: true
