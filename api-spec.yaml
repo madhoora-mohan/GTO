@@ -592,6 +592,98 @@ components:
             Only included on GET /vocab/{id} (detail view).
             Not included in list responses.
 
+    # ── Files (R2 uploads) ───────────────────────────────────
+    #
+    # Upload flow:
+    #   1. Client calls POST /files/presign with filename/mime_type/size_bytes.
+    #      Server validates size against MAX_FILE_SIZE_BYTES and returns a
+    #      presigned R2 PUT URL + the object_key the client must use.
+    #   2. Client PUTs the file bytes directly to upload_url (bytes never
+    #      pass through the API).
+    #   3. Client calls POST /files/confirm with the same object_key plus
+    #      filename/mime_type/size_bytes. Server writes the `files` metadata
+    #      row and returns it.
+
+    FilePresignInput:
+      type: object
+      required: [filename, mime_type, size_bytes]
+      properties:
+        filename:
+          type: string
+          example: ki-mnemonic.png
+        mime_type:
+          type: string
+          example: image/png
+        size_bytes:
+          type: integer
+          example: 102400
+          description: Must not exceed MAX_FILE_SIZE_BYTES (10MB).
+
+    FilePresignResponse:
+      type: object
+      required: [object_key, upload_url, expires_in]
+      properties:
+        object_key:
+          type: string
+          example: uploads/3fae2b1e-2c2a-4b8a-9e0a-2a6a8b6e9c3e
+          description: Unique R2 object key. Pass this to POST /files/confirm.
+        upload_url:
+          type: string
+          format: uri
+          example: https://<account>.r2.cloudflarestorage.com/<bucket>/uploads/3fae2b1e...?X-Amz-...
+          description: Presigned PUT URL. PUT the file bytes here directly.
+        expires_in:
+          type: integer
+          example: 900
+          description: Seconds until upload_url expires.
+
+    FileConfirmInput:
+      type: object
+      required: [object_key, filename, mime_type, size_bytes]
+      properties:
+        object_key:
+          type: string
+          example: uploads/3fae2b1e-2c2a-4b8a-9e0a-2a6a8b6e9c3e
+          description: The object_key returned by POST /files/presign.
+        filename:
+          type: string
+          example: ki-mnemonic.png
+        mime_type:
+          type: string
+          example: image/png
+        size_bytes:
+          type: integer
+          example: 102400
+
+    FileMetadata:
+      type: object
+      required: [id, object_key, filename, mime_type, size_bytes, uploaded_by, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+        object_key:
+          type: string
+          example: uploads/3fae2b1e-2c2a-4b8a-9e0a-2a6a8b6e9c3e
+        filename:
+          type: string
+          example: ki-mnemonic.png
+        mime_type:
+          type: string
+          example: image/png
+        size_bytes:
+          type: integer
+          example: 102400
+        uploaded_by:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T00:00:00Z"
+
     # ── Sentence ────────────────────────────────────────────
 
     Sentence:
@@ -1057,6 +1149,81 @@ paths:
                 $ref: '#/components/schemas/Component'
         '404':
           description: Component not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  # ── Files (R2 uploads) ────────────────────────────────────
+
+  /files/presign:
+    post:
+      summary: Get a presigned R2 upload URL
+      description: >
+        Requires auth. Validates size_bytes against MAX_FILE_SIZE_BYTES (10MB)
+        and returns a presigned PUT URL plus the object_key to use. The client
+        PUTs the file bytes directly to upload_url, then calls POST
+        /files/confirm with the same object_key to record the metadata.
+      tags: [files]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FilePresignInput'
+      responses:
+        '200':
+          description: Presigned upload URL generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilePresignResponse'
+        '401':
+          description: Missing or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: size_bytes exceeds MAX_FILE_SIZE_BYTES or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /files/confirm:
+    post:
+      summary: Confirm a completed upload and record file metadata
+      description: >
+        Requires auth. Called after the client has PUT the file bytes to
+        upload_url. Writes the `files` row (object_key, filename, mime_type,
+        size_bytes, uploaded_by) and returns it.
+      tags: [files]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileConfirmInput'
+      responses:
+        '201':
+          description: File metadata recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileMetadata'
+        '401':
+          description: Missing or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: Validation error
           content:
             application/json:
               schema:

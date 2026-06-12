@@ -779,6 +779,128 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/files/presign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get a presigned R2 upload URL
+         * @description Requires auth. Validates size_bytes against MAX_FILE_SIZE_BYTES (10MB) and returns a presigned PUT URL plus the object_key to use. The client PUTs the file bytes directly to upload_url, then calls POST /files/confirm with the same object_key to record the metadata.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["FilePresignInput"];
+                };
+            };
+            responses: {
+                /** @description Presigned upload URL generated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FilePresignResponse"];
+                    };
+                };
+                /** @description Missing or expired access token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+                /** @description size_bytes exceeds MAX_FILE_SIZE_BYTES or validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/files/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm a completed upload and record file metadata
+         * @description Requires auth. Called after the client has PUT the file bytes to upload_url. Writes the `files` row (object_key, filename, mime_type, size_bytes, uploaded_by) and returns it.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["FileConfirmInput"];
+                };
+            };
+            responses: {
+                /** @description File metadata recorded */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FileMetadata"];
+                    };
+                };
+                /** @description Missing or expired access token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1110,6 +1232,73 @@ export interface components {
             tags?: Record<string, never> | null;
             /** @description Example sentences for this word. Only included on GET /vocab/{id} (detail view). Not included in list responses. */
             sentences?: components["schemas"]["Sentence"][] | null;
+        };
+        FilePresignInput: {
+            /** @example ki-mnemonic.png */
+            filename: string;
+            /** @example image/png */
+            mime_type: string;
+            /**
+             * @description Must not exceed MAX_FILE_SIZE_BYTES (10MB).
+             * @example 102400
+             */
+            size_bytes: number;
+        };
+        FilePresignResponse: {
+            /**
+             * @description Unique R2 object key. Pass this to POST /files/confirm.
+             * @example uploads/3fae2b1e-2c2a-4b8a-9e0a-2a6a8b6e9c3e
+             */
+            object_key: string;
+            /**
+             * Format: uri
+             * @description Presigned PUT URL. PUT the file bytes here directly.
+             * @example https://<account>.r2.cloudflarestorage.com/<bucket>/uploads/3fae2b1e...?X-Amz-...
+             */
+            upload_url: string;
+            /**
+             * @description Seconds until upload_url expires.
+             * @example 900
+             */
+            expires_in: number;
+        };
+        FileConfirmInput: {
+            /**
+             * @description The object_key returned by POST /files/presign.
+             * @example uploads/3fae2b1e-2c2a-4b8a-9e0a-2a6a8b6e9c3e
+             */
+            object_key: string;
+            /** @example ki-mnemonic.png */
+            filename: string;
+            /** @example image/png */
+            mime_type: string;
+            /** @example 102400 */
+            size_bytes: number;
+        };
+        FileMetadata: {
+            /**
+             * Format: uuid
+             * @example 7c9e6679-7425-40de-944b-e07fc1f90ae7
+             */
+            id: string;
+            /** @example uploads/3fae2b1e-2c2a-4b8a-9e0a-2a6a8b6e9c3e */
+            object_key: string;
+            /** @example ki-mnemonic.png */
+            filename: string;
+            /** @example image/png */
+            mime_type: string;
+            /** @example 102400 */
+            size_bytes: number;
+            /**
+             * Format: uuid
+             * @example 550e8400-e29b-41d4-a716-446655440000
+             */
+            uploaded_by: string;
+            /**
+             * Format: date-time
+             * @example 2026-01-01T00:00:00Z
+             */
+            created_at: string;
         };
         Sentence: {
             /**

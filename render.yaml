@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: japanese-api
+    runtime: python
+    rootDir: apps/api
+    buildCommand: "pip install uv && uv sync --frozen"
+    startCommand: "uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
