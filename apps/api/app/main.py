@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import auth
+from app.routers import auth, files
 
 app = FastAPI(title="GTO API", version="0.1.0")
 
@@ -44,6 +44,10 @@ app.add_middleware(
 # /auth/register, /auth/login, /auth/refresh, /auth/logout. The "tags" group
 # them together under an "auth" heading in the /docs Swagger UI.
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
+
+# Mount the files router under the /files prefix, so its routes become
+# /files/presign and /files/confirm — the presigned R2 upload flow.
+app.include_router(files.router, prefix="/files", tags=["files"])
 
 
 @app.get("/health")
