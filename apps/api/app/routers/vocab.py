@@ -39,23 +39,14 @@ async def list_vocab(
 @router.get("/{vocab_id}", response_model=Vocab)
 async def get_vocab(
     vocab_id: str,
-    sentence_jlpt: Literal["N1", "N2", "N3", "N4", "N5"] | None = Query(default=None),
-    sentence_jlpt_max: Literal["N1", "N2", "N3", "N4", "N5"] | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Vocab:
-    """Public. Returns the vocab entry with up to 10 JLPT-ordered example sentences."""
-    if sentence_jlpt is not None and sentence_jlpt_max is not None:
-        raise AppError(
-            422, "validation_error", "sentence_jlpt and sentence_jlpt_max are mutually exclusive"
-        )
-
+    """Public. Returns the vocab entry with up to 10 example sentences (ordered by ID)."""
     row = await vocab_service.get_vocab(db, vocab_id)
     if row is None:
         raise AppError(404, "not_found", f"Vocab '{vocab_id}' not found")
 
-    sentences = await vocab_service.get_sentences(
-        db, vocab_id, sentence_jlpt=sentence_jlpt, sentence_jlpt_max=sentence_jlpt_max
-    )
+    sentences = await vocab_service.get_sentences(db, vocab_id)
 
     vocab = Vocab.model_validate(row, from_attributes=True)
     return vocab.model_copy(

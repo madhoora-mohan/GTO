@@ -10,7 +10,6 @@ from app.models.vocab_sentence import VocabSentence
 from app.services.jlpt import JLPT_RANK, jlpt_order
 
 _VOCAB_JLPT_ORDER = jlpt_order(Vocab.jlpt)
-_SENTENCE_JLPT_ORDER = jlpt_order(Sentence.jlpt)
 
 
 async def list_vocab(
@@ -59,29 +58,14 @@ async def get_vocab(db: AsyncSession, vocab_id: str) -> Vocab | None:
     return await db.get(Vocab, vocab_id)
 
 
-async def get_sentences(
-    db: AsyncSession,
-    vocab_id: str,
-    sentence_jlpt: Literal["N1", "N2", "N3", "N4", "N5"] | None = None,
-    sentence_jlpt_max: Literal["N1", "N2", "N3", "N4", "N5"] | None = None,
-) -> list[Sentence]:
-    """Up to 10 example sentences for this vocab, JLPT-ordered (N5 first,
-    NULL last) then sentence ID as a stable tie-breaker.
-
-    - `sentence_jlpt`: only sentences at exactly that level.
-    - `sentence_jlpt_max`: sentences at that level or easier (NULL excluded).
-    Mutually exclusive — caller must not pass both.
-    """
+async def get_sentences(db: AsyncSession, vocab_id: str) -> list[Sentence]:
+    """Up to 10 example sentences for this vocab, ordered by sentence ID."""
     stmt = (
         select(Sentence)
         .join(VocabSentence, VocabSentence.sentence_id == Sentence.id)
         .where(VocabSentence.vocab_id == vocab_id)
+        .order_by(Sentence.id.asc())
+        .limit(10)
     )
-    if sentence_jlpt is not None:
-        stmt = stmt.where(Sentence.jlpt == sentence_jlpt)
-    elif sentence_jlpt_max is not None:
-        stmt = stmt.where(_SENTENCE_JLPT_ORDER <= JLPT_RANK[sentence_jlpt_max])
-
-    stmt = stmt.order_by(_SENTENCE_JLPT_ORDER, Sentence.id.asc()).limit(10)
     rows = (await db.execute(stmt)).scalars().all()
     return list(rows)

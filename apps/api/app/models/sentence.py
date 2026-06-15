@@ -1,5 +1,3 @@
-from typing import Optional
-
 from sqlalchemy import Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,5 +22,4 @@ class Sentence(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     japanese: Mapped[str] = mapped_column(Text, nullable=False)
     english: Mapped[str] = mapped_column(Text, nullable=False)
-    jlpt: Mapped[Optional[str]] = mapped_column(String)
     source: Mapped[str] = mapped_column(String, default="tatoeba", nullable=False)

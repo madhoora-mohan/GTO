@@ -41,29 +41,6 @@ async def test_get_vocab_sentences_capped(client):
     assert len(resp.json()["sentences"]) <= 10
 
 
-async def test_get_vocab_sentence_jlpt_filter(client):
-    resp = await client.get("/vocab/1008490", params={"sentence_jlpt": "N5"})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert len(body["sentences"]) <= 10
-    assert all(s["jlpt"] == "N5" for s in body["sentences"])
-
-
-async def test_get_vocab_sentence_jlpt_max_filter(client):
-    resp = await client.get("/vocab/1008490", params={"sentence_jlpt_max": "N3"})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert len(body["sentences"]) <= 10
-    assert all(s["jlpt"] in ("N3", "N4", "N5") for s in body["sentences"])
-
-
-async def test_get_vocab_sentence_jlpt_conflicting_params(client):
-    resp = await client.get(
-        "/vocab/1008490", params={"sentence_jlpt": "N5", "sentence_jlpt_max": "N3"}
-    )
-    assert resp.status_code == 422
-
-
 async def test_get_vocab_not_found(client):
     resp = await client.get("/vocab/0")
     assert resp.status_code == 404

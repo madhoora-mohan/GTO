@@ -5,13 +5,6 @@ async def test_list_sentences(client):
     assert "data" in body and "total" in body
 
 
-async def test_list_sentences_filter_jlpt(client):
-    resp = await client.get("/sentences", params={"jlpt": "N5"})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert all(row["jlpt"] == "N5" for row in body["data"])
-
-
 async def test_list_sentences_search(client):
     resp = await client.get("/sentences", params={"search": "食べ"})
     assert resp.status_code == 200

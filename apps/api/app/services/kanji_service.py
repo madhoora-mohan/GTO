@@ -13,16 +13,8 @@ from app.models.sentence import Sentence
 from app.models.user_mnemonic import UserMnemonic
 from app.services.jlpt import JLPT_RANK, jlpt_order
 
-# Ordering for example sentences on detail views: N5 first, NULL last,
-# then sentence ID as a stable tie-breaker.
-_JLPT_ORDER = jlpt_order(Sentence.jlpt)
-
 # Used by GET /kanji's jlpt_max filter — "this level or easier".
 _KANJI_JLPT_ORDER = jlpt_order(Kanji.jlpt)
-
-# Difficulty rank used by sentence_jlpt_max — lower is easier. NULL (rank 6,
-# via _JLPT_ORDER) is always excluded since it's never <= 5.
-_JLPT_RANK = JLPT_RANK
 
 
 async def list_kanji(
@@ -80,30 +72,15 @@ async def get_components(db: AsyncSession, character: str) -> list[Component]:
     return list(rows)
 
 
-async def get_sentences(
-    db: AsyncSession,
-    character: str,
-    sentence_jlpt: Literal["N1", "N2", "N3", "N4", "N5"] | None = None,
-    sentence_jlpt_max: Literal["N1", "N2", "N3", "N4", "N5"] | None = None,
-) -> list[Sentence]:
-    """Up to 10 example sentences for this kanji, JLPT-ordered (N5 first,
-    NULL last) then sentence ID as a stable tie-breaker.
-
-    - `sentence_jlpt`: only sentences at exactly that level.
-    - `sentence_jlpt_max`: sentences at that level or easier (NULL excluded).
-    Mutually exclusive — caller must not pass both.
-    """
+async def get_sentences(db: AsyncSession, character: str) -> list[Sentence]:
+    """Up to 10 example sentences for this kanji, ordered by sentence ID."""
     stmt = (
         select(Sentence)
         .join(KanjiSentence, KanjiSentence.sentence_id == Sentence.id)
         .where(KanjiSentence.kanji_char == character)
+        .order_by(Sentence.id.asc())
+        .limit(10)
     )
-    if sentence_jlpt is not None:
-        stmt = stmt.where(Sentence.jlpt == sentence_jlpt)
-    elif sentence_jlpt_max is not None:
-        stmt = stmt.where(_JLPT_ORDER <= _JLPT_RANK[sentence_jlpt_max])
-
-    stmt = stmt.order_by(_JLPT_ORDER, Sentence.id.asc()).limit(10)
     rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
 

@@ -48,26 +48,17 @@ async def list_kanji(
 @router.get("/{character}", response_model=Kanji)
 async def get_kanji(
     character: str,
-    sentence_jlpt: Literal["N1", "N2", "N3", "N4", "N5"] | None = Query(default=None),
-    sentence_jlpt_max: Literal["N1", "N2", "N3", "N4", "N5"] | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Kanji:
     """Requires auth. Returns the kanji with its components, up to 10
-    JLPT-ordered example sentences, and the user's mnemonic override."""
-    if sentence_jlpt is not None and sentence_jlpt_max is not None:
-        raise AppError(
-            422, "validation_error", "sentence_jlpt and sentence_jlpt_max are mutually exclusive"
-        )
-
+    example sentences (ordered by ID), and the user's mnemonic override."""
     row = await kanji_service.get_kanji(db, character)
     if row is None:
         raise AppError(404, "not_found", f"Kanji '{character}' not found")
 
     components = await kanji_service.get_components(db, character)
-    sentences = await kanji_service.get_sentences(
-        db, character, sentence_jlpt=sentence_jlpt, sentence_jlpt_max=sentence_jlpt_max
-    )
+    sentences = await kanji_service.get_sentences(db, character)
     user_mnemonic = await kanji_service.get_user_mnemonic(db, user.id, character)
 
     kanji = Kanji.model_validate(row, from_attributes=True)

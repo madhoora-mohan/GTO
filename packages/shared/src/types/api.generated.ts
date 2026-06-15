@@ -369,12 +369,7 @@ export interface paths {
          */
         get: {
             parameters: {
-                query?: {
-                    /** @description Optional. Filter the returned example sentences to exactly this JLPT level. Still capped at 10, ordered by sentence ID. Mutually exclusive with sentence_jlpt_max — providing both is a 422. If both are omitted, sentences are returned JLPT-ordered (N5 first, NULL last) as usual. */
-                    sentence_jlpt?: components["parameters"]["SentenceJlptParam"];
-                    /** @description Optional. Filter the returned example sentences to this JLPT level or easier (e.g. N3 includes N3, N4, and N5; NULL-jlpt sentences are excluded). Still capped at 10, JLPT-ordered (N5 first) then sentence ID as a tie-breaker. Mutually exclusive with sentence_jlpt — providing both is a 422. */
-                    sentence_jlpt_max?: components["parameters"]["SentenceJlptMaxParam"];
-                };
+                query?: never;
                 header?: never;
                 path: {
                     /** @example 新 */
@@ -550,12 +545,7 @@ export interface paths {
          */
         get: {
             parameters: {
-                query?: {
-                    /** @description Optional. Filter the returned example sentences to exactly this JLPT level. Still capped at 10, ordered by sentence ID. Mutually exclusive with sentence_jlpt_max — providing both is a 422. If both are omitted, sentences are returned JLPT-ordered (N5 first, NULL last) as usual. */
-                    sentence_jlpt?: components["parameters"]["SentenceJlptParam"];
-                    /** @description Optional. Filter the returned example sentences to this JLPT level or easier (e.g. N3 includes N3, N4, and N5; NULL-jlpt sentences are excluded). Still capped at 10, JLPT-ordered (N5 first) then sentence ID as a tie-breaker. Mutually exclusive with sentence_jlpt — providing both is a 422. */
-                    sentence_jlpt_max?: components["parameters"]["SentenceJlptMaxParam"];
-                };
+                query?: never;
                 header?: never;
                 path: {
                     /**
@@ -605,7 +595,7 @@ export interface paths {
         };
         /**
          * List example sentences
-         * @description Public endpoint. No auth required.
+         * @description Public endpoint. No auth required. Paginated, searchable by Japanese text.
          */
         get: {
             parameters: {
@@ -614,10 +604,6 @@ export interface paths {
                     page?: components["parameters"]["PageParam"];
                     /** @description Number of results per page */
                     page_size?: components["parameters"]["PageSizeParam"];
-                    /** @description Optional. Filter to exactly this JLPT level. Mutually exclusive with jlpt_max — providing both is a 422. */
-                    jlpt?: components["parameters"]["JlptParam"];
-                    /** @description Optional. Filter to this JLPT level or easier (e.g. N3 includes N3, N4, and N5; NULL-jlpt items are excluded). Mutually exclusive with jlpt — providing both is a 422. */
-                    jlpt_max?: components["parameters"]["JlptMaxParam"];
                     /** @description Search within Japanese text (partial match) */
                     search?: string;
                 };
@@ -1173,7 +1159,7 @@ export interface components {
             user_mnemonic?: string | null;
             /** @description Visual components this kanji is made of. Only included on GET /kanji/{character} (detail view). Not included in list responses for performance. */
             components?: components["schemas"]["Component"][] | null;
-            /** @description Up to 10 example sentences, ordered by JLPT level (N5 first, NULL last) then sentence ID as a stable tie-breaker. Only included on GET /kanji/{character}. Not included in list responses. */
+            /** @description Up to 10 example sentences, ordered by sentence ID (ascending). Only included on GET /kanji/{character}. Not included in list responses. */
             sentences?: components["schemas"]["Sentence"][] | null;
         };
         MnemonicUpdateInput: {
@@ -1246,7 +1232,7 @@ export interface components {
              *     }
              */
             tags?: Record<string, never> | null;
-            /** @description Up to 10 example sentences, ordered by JLPT level (N5 first, NULL last) then sentence ID as a stable tie-breaker. Only included on GET /vocab/{id}. Not included in list responses. */
+            /** @description Up to 10 example sentences, ordered by sentence ID (ascending). Only included on GET /vocab/{id}. Not included in list responses. */
             sentences?: components["schemas"]["Sentence"][] | null;
         };
         FilePresignInput: {
@@ -1327,11 +1313,6 @@ export interface components {
             /** @example I go to school every day. */
             english: string;
             /**
-             * @example N5
-             * @enum {string|null}
-             */
-            jlpt?: "N5" | "N4" | "N3" | "N2" | "N1" | null;
-            /**
              * @default tatoeba
              * @example tatoeba
              */
@@ -1348,10 +1329,6 @@ export interface components {
         JlptParam: "N5" | "N4" | "N3" | "N2" | "N1";
         /** @description Optional. Filter to this JLPT level or easier (e.g. N3 includes N3, N4, and N5; NULL-jlpt items are excluded). Mutually exclusive with jlpt — providing both is a 422. */
         JlptMaxParam: "N5" | "N4" | "N3" | "N2" | "N1";
-        /** @description Optional. Filter the returned example sentences to exactly this JLPT level. Still capped at 10, ordered by sentence ID. Mutually exclusive with sentence_jlpt_max — providing both is a 422. If both are omitted, sentences are returned JLPT-ordered (N5 first, NULL last) as usual. */
-        SentenceJlptParam: "N5" | "N4" | "N3" | "N2" | "N1";
-        /** @description Optional. Filter the returned example sentences to this JLPT level or easier (e.g. N3 includes N3, N4, and N5; NULL-jlpt sentences are excluded). Still capped at 10, JLPT-ordered (N5 first) then sentence ID as a tie-breaker. Mutually exclusive with sentence_jlpt — providing both is a 422. */
-        SentenceJlptMaxParam: "N5" | "N4" | "N3" | "N2" | "N1";
     };
     requestBodies: never;
     headers: never;

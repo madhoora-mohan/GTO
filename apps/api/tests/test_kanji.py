@@ -42,33 +42,6 @@ async def test_get_kanji_sentences_capped(client, auth_headers):
     assert len(resp.json()["sentences"]) <= 10
 
 
-async def test_get_kanji_sentence_jlpt_filter(client, auth_headers):
-    resp = await client.get("/kanji/日", params={"sentence_jlpt": "N5"}, headers=auth_headers)
-    assert resp.status_code == 200
-    body = resp.json()
-    assert len(body["sentences"]) <= 10
-    assert all(s["jlpt"] == "N5" for s in body["sentences"])
-
-
-async def test_get_kanji_sentence_jlpt_max_filter(client, auth_headers):
-    resp = await client.get(
-        "/kanji/日", params={"sentence_jlpt_max": "N3"}, headers=auth_headers
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert len(body["sentences"]) <= 10
-    assert all(s["jlpt"] in ("N3", "N4", "N5") for s in body["sentences"])
-
-
-async def test_get_kanji_sentence_jlpt_conflicting_params(client, auth_headers):
-    resp = await client.get(
-        "/kanji/日",
-        params={"sentence_jlpt": "N5", "sentence_jlpt_max": "N3"},
-        headers=auth_headers,
-    )
-    assert resp.status_code == 422
-
-
 async def test_get_kanji_not_found(client, auth_headers):
     resp = await client.get("/kanji/$", headers=auth_headers)
     assert resp.status_code == 404
