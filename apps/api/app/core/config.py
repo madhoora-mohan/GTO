@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     # CORS_ORIGINS env var name (otherwise it would look for CORS_ORIGINS_RAW).
     cors_origins_raw: str = Field(default="http://localhost:5173", validation_alias="CORS_ORIGINS")
 
+    # ── Sentry ────────────────────────────────────────────────────────────────
+    # Optional — Sentry error tracking is silently disabled if this is unset.
+    sentry_dsn: str | None = None
+
     @property
     def cors_origins(self) -> list[str]:
         """Turn the comma-separated CORS_ORIGINS string into a clean list of

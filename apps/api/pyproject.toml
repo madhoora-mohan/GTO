@@ -17,4 +17,16 @@ dependencies = [
     "pydantic-settings>=2.14.1",
     "pyjwt>=2.13.0",
     "pykakasi>=2.3.0",
+    "sentry-sdk[fastapi]>=2.60.0",
+    "slowapi>=0.1.10",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.0",
+    "pytest-asyncio>=1.4.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]

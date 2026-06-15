@@ -3,6 +3,7 @@
 #       separate from the R2/DB logic in services/file_service.py.
 
 from fastapi import APIRouter, Depends, status
+from pydantic import AnyUrl
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -23,7 +24,9 @@ async def presign(
     object_key, upload_url, expires_in = file_service.create_presigned_upload(
         body.filename, body.mime_type, body.size_bytes
     )
-    return FilePresignResponse(object_key=object_key, upload_url=upload_url, expires_in=expires_in)
+    return FilePresignResponse(
+        object_key=object_key, upload_url=AnyUrl(upload_url), expires_in=expires_in
+    )
 
 
 @router.post("/confirm", response_model=FileMetadata, status_code=status.HTTP_201_CREATED)

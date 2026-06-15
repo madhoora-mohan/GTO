@@ -13,13 +13,41 @@
 #   uv run uvicorn app.main:app --reload
 # then open http://localhost:8000/docs for interactive API docs (Swagger UI).
 
+import sentry_sdk
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
-from app.routers import auth, files
+from app.core.errors import (
+    AppError,
+    app_error_handler,
+    http_exception_handler,
+    rate_limit_exceeded_handler,
+    validation_error_handler,
+)
+from app.core.limiter import limiter
+from app.core.logging import configure_logging
+from app.routers import auth, components, files, kana, kanji, sentences, vocab
+
+configure_logging()
+
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        traces_sample_rate=0.2,
+        environment="production",
+    )
 
 app = FastAPI(title="GTO API", version="0.1.0")
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_exception_handler(AppError, app_error_handler)
+app.add_exception_handler(RequestValidationError, validation_error_handler)
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 
 # CORS = Cross-Origin Resource Sharing. By default, browsers block JavaScript
 # on one origin (e.g. http://localhost:5173, our web app) from making requests
@@ -48,6 +76,17 @@ app.include_router(auth.router, prefix="/auth", tags=["auth"])
 # Mount the files router under the /files prefix, so its routes become
 # /files/presign and /files/confirm — the presigned R2 upload flow.
 app.include_router(files.router, prefix="/files", tags=["files"])
+
+# Mount the kana router under the /kana prefix.
+app.include_router(kana.router, prefix="/kana", tags=["kana"])
+
+app.include_router(kanji.router, prefix="/kanji", tags=["kanji"])
+
+app.include_router(vocab.router, prefix="/vocab", tags=["vocab"])
+
+app.include_router(sentences.router, prefix="/sentences", tags=["sentences"])
+
+app.include_router(components.router, prefix="/components", tags=["components"])
 
 
 @app.get("/health")

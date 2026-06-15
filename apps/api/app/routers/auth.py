@@ -12,10 +12,13 @@
 # soft-revocation — live in the service layer where they're easier to test
 # and reason about without HTTP concerns mixed in.
 
-from fastapi import APIRouter, Cookie, Depends, Response, status
+from typing import Literal, TypedDict
+
+from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
+from app.core.limiter import limiter
 from app.schemas.generated import AuthResponse, LoginInput, RefreshResponse, RegisterInput
 from app.schemas.generated import User as UserSchema
 from app.services import auth_service
@@ -42,11 +45,17 @@ router = APIRouter()
 #                       without breaking normal top-level navigation
 #   max_age         -> 30 days, matching the refresh token's own JWT `exp`
 _REFRESH_COOKIE_NAME = "refresh_token"
-_REFRESH_COOKIE_KWARGS = dict(
-    httponly=True,
-    secure=True,
-    samesite="lax",
-)
+class _RefreshCookieKwargs(TypedDict):
+    httponly: bool
+    secure: bool
+    samesite: Literal["lax", "strict", "none"]
+
+
+_REFRESH_COOKIE_KWARGS: _RefreshCookieKwargs = {
+    "httponly": True,
+    "secure": True,
+    "samesite": "lax",
+}
 _REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days, in seconds
 
 
@@ -67,7 +76,9 @@ def _clear_refresh_cookie(response: Response) -> None:
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def register(
+    request: Request,
     body: RegisterInput,
     response: Response,
     db: AsyncSession = Depends(get_db),
@@ -80,7 +91,9 @@ async def register(
 
 
 @router.post("/login", response_model=AuthResponse)
+@limiter.limit("10/minute")
 async def login(
+    request: Request,
     body: LoginInput,
     response: Response,
     db: AsyncSession = Depends(get_db),
@@ -100,7 +113,9 @@ async def login(
 
 
 @router.post("/refresh", response_model=RefreshResponse)
+@limiter.limit("30/minute")
 async def refresh(
+    request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
     refresh_token: str | None = Cookie(default=None, alias=_REFRESH_COOKIE_NAME),
