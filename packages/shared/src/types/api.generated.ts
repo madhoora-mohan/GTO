@@ -365,7 +365,7 @@ export interface paths {
         };
         /**
          * Get a single kanji with full detail
-         * @description Requires auth. Returns the kanji with components, example sentences, and the user's personal mnemonic override (user_mnemonic). user_mnemonic is null if the user has not set one — display mnemonic (the LLM default) instead.
+         * @description Requires auth. Returns the kanji with its components, up to 10 JLPT-ordered example sentences, up to 20 vocab words grouped by reading type, classical radical info, and the user's mnemonic override. user_mnemonic is null if the user has not set one — display mnemonic (the LLM default) instead.
          */
         get: {
             parameters: {
@@ -1161,6 +1161,34 @@ export interface components {
             components?: components["schemas"]["Component"][] | null;
             /** @description Up to 10 example sentences, ordered by sentence ID (ascending). Only included on GET /kanji/{character}. Not included in list responses. */
             sentences?: components["schemas"]["Sentence"][] | null;
+            /** @description Up to 20 vocabulary words that contain this kanji, ordered by JLPT level (N5 first, NULL last) then by is_common (common words first), then by vocab id as a stable tie-breaker. Grouped by reading_type on the frontend. Only included on GET /kanji/{character}. Not included in list responses. */
+            vocab_words?: components["schemas"]["KanjiVocabEntry"][] | null;
+        };
+        KanjiVocabEntry: {
+            /**
+             * @description JMdict entry sequence number
+             * @example 1578850
+             */
+            id: string;
+            /** @example 食べる */
+            word: string;
+            /** @example たべる */
+            reading: string;
+            /** @example taberu */
+            romaji?: string | null;
+            meanings: components["schemas"]["VocabMeaning"][];
+            /**
+             * @example N5
+             * @enum {string|null}
+             */
+            jlpt?: "N5" | "N4" | "N3" | "N2" | "N1" | null;
+            /** @description True if tagged ichi1/news1/spec1 in JMdict */
+            is_common?: boolean | null;
+            /**
+             * @description Whether this vocab word uses the on'yomi or kun'yomi reading of the kanji. "on" = Chinese-origin compound reading (e.g. 食事 uses ショク). "kun" = Native Japanese reading (e.g. 食べる uses た). null = reading could not be resolved (irregular or single-char reading).
+             * @enum {string|null}
+             */
+            reading_type?: "on" | "kun" | null;
         };
         MnemonicUpdateInput: {
             /**
