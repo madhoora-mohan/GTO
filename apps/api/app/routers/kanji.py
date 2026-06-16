@@ -1,6 +1,7 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -11,6 +12,7 @@ from app.models.user import User
 from app.schemas.generated import (
     Component,
     Kanji,
+    KanjiVocabEntry,
     MnemonicUpdateInput,
     MnemonicUpdateResponse,
     PaginatedKanji,
@@ -37,12 +39,16 @@ async def list_kanji(
     rows, total = await kanji_service.list_kanji(
         db, page_params, jlpt=jlpt, jlpt_max=jlpt_max, grade=grade, stroke_count=stroke_count
     )
-    return PaginatedKanji(
-        data=[Kanji.model_validate(row, from_attributes=True) for row in rows],
-        total=total,
-        page=page_params.page,
-        page_size=page_params.page_size,
-    )
+    _exclude = {"vocab_words", "components", "sentences", "user_mnemonic"}
+    return JSONResponse({
+        "data": [
+            Kanji.model_validate(row, from_attributes=True).model_dump(mode="json", exclude=_exclude)
+            for row in rows
+        ],
+        "total": total,
+        "page": page_params.page,
+        "page_size": page_params.page_size,
+    })
 
 
 @router.get("/{character}", response_model=Kanji)
@@ -52,13 +58,15 @@ async def get_kanji(
     db: AsyncSession = Depends(get_db),
 ) -> Kanji:
     """Requires auth. Returns the kanji with its components, up to 10
-    example sentences (ordered by ID), and the user's mnemonic override."""
+    JLPT-ordered example sentences, up to 20 vocab words grouped by reading
+    type, classical radical info, and the user's mnemonic override."""
     row = await kanji_service.get_kanji(db, character)
     if row is None:
         raise AppError(404, "not_found", f"Kanji '{character}' not found")
 
     components = await kanji_service.get_components(db, character)
     sentences = await kanji_service.get_sentences(db, character)
+    vocab_words = await kanji_service.get_vocab_words(db, character)
     user_mnemonic = await kanji_service.get_user_mnemonic(db, user.id, character)
 
     kanji = Kanji.model_validate(row, from_attributes=True)
@@ -66,6 +74,19 @@ async def get_kanji(
         update={
             "components": [Component.model_validate(c, from_attributes=True) for c in components],
             "sentences": [Sentence.model_validate(s, from_attributes=True) for s in sentences],
+            "vocab_words": [
+                KanjiVocabEntry(
+                    id=v.id,
+                    word=v.word,
+                    reading=v.reading,
+                    romaji=v.romaji,
+                    meanings=v.meanings,
+                    jlpt=v.jlpt,
+                    is_common=v.is_common,
+                    reading_type=reading_type,
+                )
+                for v, reading_type in vocab_words
+            ],
             "user_mnemonic": user_mnemonic,
         }
     )

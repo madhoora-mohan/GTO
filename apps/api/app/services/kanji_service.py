@@ -1,7 +1,7 @@
 import uuid
 from typing import Literal
 
-from sqlalchemy import func, nulls_last, select
+from sqlalchemy import case, func, nulls_last, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import PageParams
@@ -9,8 +9,10 @@ from app.models.component import Component
 from app.models.kanji import Kanji
 from app.models.kanji_component import KanjiComponent
 from app.models.kanji_sentence import KanjiSentence
+from app.models.kanji_vocab import KanjiVocab
 from app.models.sentence import Sentence
 from app.models.user_mnemonic import UserMnemonic
+from app.models.vocab import Vocab
 from app.services.jlpt import JLPT_RANK, jlpt_order
 
 # Used by GET /kanji's jlpt_max filter — "this level or easier".
@@ -83,6 +85,28 @@ async def get_sentences(db: AsyncSession, character: str) -> list[Sentence]:
     )
     rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
+
+
+async def get_vocab_words(db: AsyncSession, character: str) -> list[tuple[Vocab, str | None]]:
+    """Up to 20 vocab words containing this kanji, with their reading_type,
+    ordered N5 first (NULL last), common words first, then by vocab id."""
+    stmt = (
+        select(Vocab, KanjiVocab.reading_type)
+        .join(KanjiVocab, KanjiVocab.vocab_id == Vocab.id)
+        .where(KanjiVocab.kanji_char == character)
+        .order_by(
+            case(
+                {level: rank for level, rank in JLPT_RANK.items()},
+                value=Vocab.jlpt,
+                else_=99,
+            ).asc(),
+            case((Vocab.is_common == True, 0), else_=1).asc(),  # noqa: E712
+            Vocab.id.asc(),
+        )
+        .limit(20)
+    )
+    rows = (await db.execute(stmt)).all()
+    return [(v, reading_type) for v, reading_type in rows]
 
 
 async def get_user_mnemonic(db: AsyncSession, user_id: uuid.UUID, character: str) -> str | None:

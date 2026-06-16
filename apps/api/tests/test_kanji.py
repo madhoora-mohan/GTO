@@ -76,3 +76,45 @@ async def test_patch_mnemonic_not_found(client, auth_headers):
         "/kanji/$/mnemonic", json={"mnemonic": "test"}, headers=auth_headers
     )
     assert resp.status_code == 404
+
+
+async def test_kanji_detail_includes_vocab_words(client, auth_headers):
+    resp = await client.get("/kanji/食", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "vocab_words" in data
+    assert isinstance(data["vocab_words"], list)
+    assert len(data["vocab_words"]) <= 20
+    for entry in data["vocab_words"]:
+        assert "id" in entry
+        assert "word" in entry
+        assert "reading" in entry
+        assert "meanings" in entry
+        assert "reading_type" in entry
+        assert entry["reading_type"] in ("on", "kun", None)
+
+
+async def test_kanji_vocab_reading_types_for_food_kanji(client, auth_headers):
+    resp = await client.get("/kanji/食", headers=auth_headers)
+    assert resp.status_code == 200
+    words = resp.json()["vocab_words"]
+    reading_types = {w["word"]: w["reading_type"] for w in words}
+    if "食べる" in reading_types:
+        assert reading_types["食べる"] == "kun"
+    if "食事" in reading_types:
+        assert reading_types["食事"] == "on"
+
+
+async def test_kanji_detail_includes_classical_radical(client, auth_headers):
+    resp = await client.get("/kanji/食", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "classical_radical_number" in data
+    assert "classical_radical_char" in data
+
+
+async def test_kanji_list_does_not_include_vocab_words(client):
+    resp = await client.get("/kanji")
+    assert resp.status_code == 200
+    for item in resp.json()["data"]:
+        assert "vocab_words" not in item
