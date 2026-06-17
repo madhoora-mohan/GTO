@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.pagination import PageParams
 from app.models.sentence import Sentence
 from app.models.vocab import Vocab
-from app.models.vocab_sentence import VocabSentence
 from app.services.jlpt import JLPT_RANK, jlpt_order
 
 _VOCAB_JLPT_ORDER = jlpt_order(Vocab.jlpt)
@@ -58,12 +57,11 @@ async def get_vocab(db: AsyncSession, vocab_id: str) -> Vocab | None:
     return await db.get(Vocab, vocab_id)
 
 
-async def get_sentences(db: AsyncSession, vocab_id: str) -> list[Sentence]:
-    """Up to 10 example sentences for this vocab, ordered by sentence ID."""
+async def get_sentences(db: AsyncSession, vocab_word: str) -> list[Sentence]:
+    """Up to 10 example sentences containing this vocab word, using GIN trigram index."""
     stmt = (
         select(Sentence)
-        .join(VocabSentence, VocabSentence.sentence_id == Sentence.id)
-        .where(VocabSentence.vocab_id == vocab_id)
+        .where(Sentence.japanese.contains(vocab_word))
         .order_by(Sentence.id.asc())
         .limit(10)
     )

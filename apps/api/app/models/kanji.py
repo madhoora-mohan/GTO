@@ -21,6 +21,5 @@ class Kanji(Base):
     stroke_count: Mapped[int] = mapped_column(Integer, nullable=False)
     frequency: Mapped[Optional[int]] = mapped_column(Integer)
     classical_radical_number: Mapped[Optional[int]] = mapped_column(Integer)
-    classical_radical_char: Mapped[Optional[str]] = mapped_column(String)
     stroke_order_svg_url: Mapped[Optional[str]] = mapped_column(String)
     mnemonic: Mapped[Optional[str]] = mapped_column(Text)

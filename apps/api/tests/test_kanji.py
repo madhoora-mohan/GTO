@@ -110,7 +110,7 @@ async def test_kanji_detail_includes_classical_radical(client, auth_headers):
     assert resp.status_code == 200
     data = resp.json()
     assert "classical_radical_number" in data
-    assert "classical_radical_char" in data
+    assert "classical_radical_char" not in data
 
 
 async def test_kanji_list_does_not_include_vocab_words(client):

@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Annotated, Any
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import AnyUrl, AwareDatetime, BaseModel, EmailStr, Field
@@ -224,7 +224,6 @@ class Sentence(BaseModel):
     id: Annotated[int, Field(description='Tatoeba sentence ID', examples=[1234])]
     japanese: Annotated[str, Field(examples=['私は毎日学校に行きます。'])]
     english: Annotated[str, Field(examples=['I go to school every day.'])]
-    source: Annotated[str | None, Field(examples=['tatoeba'])] = 'tatoeba'
 
 
 class PaginatedKana(BaseModel):
@@ -289,13 +288,6 @@ class Vocab(BaseModel):
         bool | None,
         Field(
             description='True if tagged ichi1/news1/spec1 in JMdict', examples=[True]
-        ),
-    ] = None
-    tags: Annotated[
-        dict[str, Any] | None,
-        Field(
-            description='JMdict dialect, field, and misc tags',
-            examples=[{'dialect': 'kansai', 'field': 'medicine'}],
         ),
     ] = None
     sentences: Annotated[
@@ -384,9 +376,6 @@ class Kanji(BaseModel):
     classical_radical_number: Annotated[
         int | None,
         Field(description='Kangxi radical number from KANJIDIC2', examples=[69]),
-    ] = None
-    classical_radical_char: Annotated[
-        str | None, Field(description='The actual radical character', examples=['斤'])
     ] = None
     stroke_order_svg_url: Annotated[
         AnyUrl | None, Field(examples=['https://r2.yourdomain.com/kanjivg/065b0.svg'])

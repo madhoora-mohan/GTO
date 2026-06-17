@@ -18,4 +18,3 @@ class Vocab(Base):
     furigana: Mapped[Optional[list]] = mapped_column(JSONB)
     jlpt: Mapped[Optional[str]] = mapped_column(String)
     is_common: Mapped[Optional[bool]] = mapped_column(Boolean)
-    tags: Mapped[Optional[dict]] = mapped_column(JSONB)

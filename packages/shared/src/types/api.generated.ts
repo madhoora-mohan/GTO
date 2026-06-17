@@ -1138,11 +1138,6 @@ export interface components {
              */
             classical_radical_number?: number | null;
             /**
-             * @description The actual radical character
-             * @example 斤
-             */
-            classical_radical_char?: string | null;
-            /**
              * Format: uri
              * @example https://r2.yourdomain.com/kanjivg/065b0.svg
              */
@@ -1252,14 +1247,6 @@ export interface components {
              * @example true
              */
             is_common?: boolean | null;
-            /**
-             * @description JMdict dialect, field, and misc tags
-             * @example {
-             *       "dialect": "kansai",
-             *       "field": "medicine"
-             *     }
-             */
-            tags?: Record<string, never> | null;
             /** @description Up to 10 example sentences, ordered by sentence ID (ascending). Only included on GET /vocab/{id}. Not included in list responses. */
             sentences?: components["schemas"]["Sentence"][] | null;
         };
@@ -1340,11 +1327,6 @@ export interface components {
             japanese: string;
             /** @example I go to school every day. */
             english: string;
-            /**
-             * @default tatoeba
-             * @example tatoeba
-             */
-            source: string;
         };
     };
     responses: never;

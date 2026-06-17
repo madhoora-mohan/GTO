@@ -455,11 +455,6 @@ components:
           nullable: true
           example: 69
           description: Kangxi radical number from KANJIDIC2
-        classical_radical_char:
-          type: string
-          nullable: true
-          example: 斤
-          description: The actual radical character
         stroke_order_svg_url:
           type: string
           nullable: true
@@ -643,11 +638,6 @@ components:
           nullable: true
           example: true
           description: True if tagged ichi1/news1/spec1 in JMdict
-        tags:
-          type: object
-          nullable: true
-          example: { "dialect": "kansai", "field": "medicine" }
-          description: JMdict dialect, field, and misc tags
         sentences:
           type: array
           nullable: true
@@ -766,10 +756,6 @@ components:
         english:
           type: string
           example: I go to school every day.
-        source:
-          type: string
-          example: tatoeba
-          default: tatoeba
 
 
 # ─────────────────────────────────────────────────────────────

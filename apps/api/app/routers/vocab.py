@@ -46,7 +46,7 @@ async def get_vocab(
     if row is None:
         raise AppError(404, "not_found", f"Vocab '{vocab_id}' not found")
 
-    sentences = await vocab_service.get_sentences(db, vocab_id)
+    sentences = await vocab_service.get_sentences(db, row.word)
 
     vocab = Vocab.model_validate(row, from_attributes=True)
     return vocab.model_copy(

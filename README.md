@@ -32,13 +32,13 @@ packages/
 | Table | Contents |
 |---|---|
 | `kana` | Hiragana + Katakana (~208 characters) |
-| `kanji` | 2,200 JLPT kanji with readings, meanings, stroke count, frequency, mnemonics |
-| `component` | ~253 kanji radicals with English keywords |
-| `kanji_component` | Kanji → radical decomposition |
-| `vocab` | ~10,000 JLPT words with readings, furigana, pitch accent, frequency |
-| `sentence` | ~50,000 Japanese/English sentence pairs |
-| `vocab_sentence` | Vocab → sentence links |
-| `kanji_sentence` | Kanji → sentence links |
+| `kanji` | 10,384 kanji (2,136 JLPT-tagged) with readings, meanings, stroke count, frequency, mnemonics |
+| `component` | 253 kanji radicals with English keywords |
+| `kanji_component` | Kanji → radical decomposition (22,437 rows) |
+| `vocab` | 7,645 JLPT words with readings, furigana, romaji, meanings |
+| `sentences` | 232,584 Japanese/English sentence pairs (Tatoeba) |
+| `kanji_sentence` | Kanji → sentence links (865,710 rows) |
+| `kanji_vocab` | Kanji → vocab links with on/kun reading type (11,436 rows) |
 
 ## Setup
 
