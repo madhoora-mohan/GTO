@@ -757,6 +757,116 @@ components:
           type: string
           example: I go to school every day.
 
+    # ── Reading comprehension ───────────────────────────────
+
+    ReadingQuestion:
+      type: object
+      required: [id, passage_id, question_order, question_text, options, correct_answer, explanation]
+      properties:
+        id:
+          type: integer
+          example: 1
+        passage_id:
+          type: integer
+          example: 1
+        question_order:
+          type: integer
+          example: 1
+        question_text:
+          type: string
+          example: "田中さんはなぜ電話をしましたか。"
+        options:
+          type: array
+          items:
+            type: string
+          minItems: 4
+          maxItems: 4
+          example: ["パーティーに誘うため", "仕事の相談のため", "誕生日を伝えるため", "引っ越しの手伝いを頼むため"]
+        correct_answer:
+          type: string
+          example: "パーティーに誘うため"
+        explanation:
+          type: string
+          example: "The passage states Tanaka-san called to invite the person to a party."
+
+    ReadingPassage:
+      type: object
+      required: [id, jlpt_level, difficulty_score, word_count, source]
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          nullable: true
+          example: "田中さんのパーティー"
+        jlpt_level:
+          type: string
+          enum: [N5, N4, N3, N2, N1]
+          example: "N4"
+        difficulty_score:
+          type: number
+          format: float
+          description: Raw jReadability score. Lower = harder (N1), higher = easier (N5).
+          example: 6.10
+        word_count:
+          type: integer
+          example: 110
+        source:
+          type: string
+          enum: [jaquad, jsquad, aozora, llm_qwen3.5]
+          example: "llm_qwen3.5"
+        passage_text:
+          type: string
+          nullable: true
+          description: >
+            Raw Japanese text, no furigana markup. Fetched from R2 at request
+            time via content_key — never stored directly in Neon. Only
+            included on GET /reading/passages/{id}; omitted from list
+            responses to avoid an R2 fetch per row.
+          example: "来週の土曜日、田中さんから電話がありました。"
+        furigana_segments:
+          type: array
+          nullable: true
+          description: >
+            Populated only for source=aozora. Null for all other sources —
+            frontend falls back to client-side kuroshiro.js, same as
+            sentences. Only included on GET /reading/passages/{id}.
+          items:
+            $ref: '#/components/schemas/FuriganaSegment'
+        english_translation:
+          type: string
+          nullable: true
+          description: Only included on GET /reading/passages/{id}.
+          example: "Last week I received a phone call from Tanaka-san."
+        questions:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/ReadingQuestion'
+          description: >
+            All questions for this passage, ordered by question_order. Only
+            included on GET /reading/passages/{id}. Not included in list
+            responses.
+
+    PaginatedReadingPassage:
+      type: object
+      required: [data, total, page, page_size]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReadingPassage'
+        total:
+          type: integer
+          example: 200
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+
 
 # ─────────────────────────────────────────────────────────────
 # PATHS
@@ -1198,6 +1308,60 @@ paths:
                 $ref: '#/components/schemas/Component'
         '404':
           description: Component not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  # ── Reading comprehension ──────────────────────────────────
+
+  /reading/passages:
+    get:
+      summary: List reading comprehension passages
+      description: >
+        Public endpoint. No auth required. Filterable by JLPT level.
+        passage_text/furigana_segments/english_translation/questions are
+        omitted here — fetch GET /reading/passages/{id} for full content.
+      tags: [reading]
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: jlpt_level
+          in: query
+          schema:
+            type: string
+            enum: [N5, N4, N3, N2, N1]
+      responses:
+        '200':
+          description: Paginated list of passages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReadingPassage'
+
+  /reading/passages/{id}:
+    get:
+      summary: Get a single passage with its questions
+      description: >
+        Public endpoint. No auth required. Fetches passage_text (and
+        furigana_segments/english_translation) from R2, and all questions
+        for the passage ordered by question_order.
+      tags: [reading]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Passage detail including nested questions array
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingPassage'
+        '404':
+          description: Passage not found
           content:
             application/json:
               schema:

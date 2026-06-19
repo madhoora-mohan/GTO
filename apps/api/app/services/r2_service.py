@@ -6,6 +6,7 @@
 #       R2 because R2 implements the S3 API; we just point it at R2's
 #       account-specific endpoint instead of AWS.
 
+import json
 import uuid
 
 import boto3
@@ -41,3 +42,22 @@ def presigned_put(object_key: str, content_type: str, expires: int = PRESIGNED_U
         Params={"Bucket": settings.r2_bucket, "Key": object_key, "ContentType": content_type},
         ExpiresIn=expires,
     )
+
+
+def put_json(object_key: str, data: dict) -> None:
+    """Write a JSON blob straight to R2 — used for reading-comprehension
+    passage/question content, which the API server writes server-side
+    (unlike file uploads, which go client -> R2 directly via presigned_put)."""
+    _client.put_object(
+        Bucket=settings.r2_bucket,
+        Key=object_key,
+        # ensure_ascii=False: without it, Japanese text gets escaped to
+        # \uXXXX sequences, which bloats the JSON and is harder to debug.
+        Body=json.dumps(data, ensure_ascii=False).encode("utf-8"),
+        ContentType="application/json",
+    )
+
+
+def get_json(object_key: str) -> dict:
+    response = _client.get_object(Bucket=settings.r2_bucket, Key=object_key)
+    return json.loads(response["Body"].read().decode("utf-8"))

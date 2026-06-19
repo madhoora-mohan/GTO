@@ -13,10 +13,13 @@ from app.models.sentence import Sentence
 from app.models.kanji_vocab import KanjiVocab
 from app.models.kanji_component import KanjiComponent
 from app.models.kanji_sentence import KanjiSentence
+from app.models.reading_passage import ReadingPassage
+from app.models.reading_question import ReadingQuestion
 
 __all__ = [
     "Base",
     "User", "RefreshToken", "UserMnemonic", "File",
     "Kana", "Component", "Kanji", "Vocab", "Sentence",
     "KanjiVocab", "KanjiComponent", "KanjiSentence",
+    "ReadingPassage", "ReadingQuestion",
 ]

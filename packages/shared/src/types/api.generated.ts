@@ -781,6 +781,101 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reading/passages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List reading comprehension passages
+         * @description Public endpoint. No auth required. Filterable by JLPT level. passage_text/furigana_segments/english_translation/questions are omitted here — fetch GET /reading/passages/{id} for full content.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Page number (1-indexed) */
+                    page?: components["parameters"]["PageParam"];
+                    /** @description Number of results per page */
+                    page_size?: components["parameters"]["PageSizeParam"];
+                    jlpt_level?: "N5" | "N4" | "N3" | "N2" | "N1";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Paginated list of passages */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PaginatedReadingPassage"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reading/passages/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a single passage with its questions
+         * @description Public endpoint. No auth required. Fetches passage_text (and furigana_segments/english_translation) from R2, and all questions for the passage ordered by question_order.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Passage detail including nested questions array */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReadingPassage"];
+                    };
+                };
+                /** @description Passage not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/files/presign": {
         parameters: {
             query?: never;
@@ -1327,6 +1422,76 @@ export interface components {
             japanese: string;
             /** @example I go to school every day. */
             english: string;
+        };
+        ReadingQuestion: {
+            /** @example 1 */
+            id: number;
+            /** @example 1 */
+            passage_id: number;
+            /** @example 1 */
+            question_order: number;
+            /** @example 田中さんはなぜ電話をしましたか。 */
+            question_text: string;
+            /**
+             * @example [
+             *       "パーティーに誘うため",
+             *       "仕事の相談のため",
+             *       "誕生日を伝えるため",
+             *       "引っ越しの手伝いを頼むため"
+             *     ]
+             */
+            options: string[];
+            /** @example パーティーに誘うため */
+            correct_answer: string;
+            /** @example The passage states Tanaka-san called to invite the person to a party. */
+            explanation: string;
+        };
+        ReadingPassage: {
+            /** @example 1 */
+            id: number;
+            /** @example 田中さんのパーティー */
+            title?: string | null;
+            /**
+             * @example N4
+             * @enum {string}
+             */
+            jlpt_level: "N5" | "N4" | "N3" | "N2" | "N1";
+            /**
+             * Format: float
+             * @description Raw jReadability score. Lower = harder (N1), higher = easier (N5).
+             * @example 6.1
+             */
+            difficulty_score: number;
+            /** @example 110 */
+            word_count: number;
+            /**
+             * @example llm_qwen3.5
+             * @enum {string}
+             */
+            source: "jaquad" | "jsquad" | "aozora" | "llm_qwen3.5";
+            /**
+             * @description Raw Japanese text, no furigana markup. Fetched from R2 at request time via content_key — never stored directly in Neon. Only included on GET /reading/passages/{id}; omitted from list responses to avoid an R2 fetch per row.
+             * @example 来週の土曜日、田中さんから電話がありました。
+             */
+            passage_text?: string | null;
+            /** @description Populated only for source=aozora. Null for all other sources — frontend falls back to client-side kuroshiro.js, same as sentences. Only included on GET /reading/passages/{id}. */
+            furigana_segments?: components["schemas"]["FuriganaSegment"][] | null;
+            /**
+             * @description Only included on GET /reading/passages/{id}.
+             * @example Last week I received a phone call from Tanaka-san.
+             */
+            english_translation?: string | null;
+            /** @description All questions for this passage, ordered by question_order. Only included on GET /reading/passages/{id}. Not included in list responses. */
+            questions?: components["schemas"]["ReadingQuestion"][] | null;
+        };
+        PaginatedReadingPassage: {
+            data: components["schemas"]["ReadingPassage"][];
+            /** @example 200 */
+            total: number;
+            /** @example 1 */
+            page: number;
+            /** @example 20 */
+            page_size: number;
         };
     };
     responses: never;

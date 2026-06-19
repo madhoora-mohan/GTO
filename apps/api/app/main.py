@@ -30,7 +30,7 @@ from app.core.errors import (
 )
 from app.core.limiter import limiter
 from app.core.logging import configure_logging
-from app.routers import auth, components, files, kana, kanji, sentences, vocab
+from app.routers import auth, components, files, kana, kanji, reading, sentences, vocab
 
 configure_logging()
 
@@ -87,6 +87,8 @@ app.include_router(vocab.router, prefix="/vocab", tags=["vocab"])
 app.include_router(sentences.router, prefix="/sentences", tags=["sentences"])
 
 app.include_router(components.router, prefix="/components", tags=["components"])
+
+app.include_router(reading.router, prefix="/reading", tags=["reading"])
 
 
 @app.get("/health")
