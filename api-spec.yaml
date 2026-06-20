@@ -867,6 +867,41 @@ components:
           type: integer
           example: 20
 
+    # ── Users ───────────────────────────────────────────────
+
+    UserMnemonic:
+      type: object
+      required: [character, user_mnemonic, updated_at]
+      properties:
+        character:
+          type: string
+          example: 新
+        user_mnemonic:
+          type: string
+          example: My new axe stands against the tree outside.
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T00:00:00Z"
+
+    PaginatedUserMnemonic:
+      type: object
+      required: [data, total, page, page_size]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserMnemonic'
+        total:
+          type: integer
+          example: 12
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+
 
 # ─────────────────────────────────────────────────────────────
 # PATHS
@@ -1162,6 +1197,35 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
 
+  # ── Users ────────────────────────────────────────────────
+
+  /users/me/mnemonics:
+    get:
+      summary: List the authenticated user's custom kanji mnemonics
+      description: >
+        Requires auth. Returns only kanji for which the user has written a
+        mnemonic override (via PATCH /kanji/{character}/mnemonic) — not every
+        kanji. Ordered by updated_at descending (most recently edited first).
+      tags: [users]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Paginated list of the user's custom mnemonics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserMnemonic'
+        '401':
+          description: Missing or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
   # ── Vocab ─────────────────────────────────────────────────
 
   /vocab:
@@ -1343,10 +1407,12 @@ paths:
     get:
       summary: Get a single passage with its questions
       description: >
-        Public endpoint. No auth required. Fetches passage_text (and
-        furigana_segments/english_translation) from R2, and all questions
-        for the passage ordered by question_order.
+        Requires auth. Fetches passage_text (and furigana_segments/
+        english_translation) from R2, and all questions for the passage
+        ordered by question_order.
       tags: [reading]
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -1360,6 +1426,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadingPassage'
+        '401':
+          description: Missing or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: Passage not found
           content:

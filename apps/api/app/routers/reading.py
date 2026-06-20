@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.pagination import PageParams, page_params
+from app.deps.auth import get_current_user
+from app.models.user import User
 from app.schemas.generated import PaginatedReadingPassage, ReadingPassage, ReadingQuestion
 from app.services import reading_service
 
@@ -33,9 +35,10 @@ async def list_passages(
 @router.get("/passages/{passage_id}", response_model=ReadingPassage)
 async def get_passage(
     passage_id: int,
+    _user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ReadingPassage:
-    """Public. Fetches passage content from R2 and all questions (with
+    """Requires auth. Fetches passage content from R2 and all questions (with
     their own content fetched from R2), ordered by question_order."""
     row = await reading_service.get_passage(db, passage_id)
     if row is None:

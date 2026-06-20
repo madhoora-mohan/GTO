@@ -144,3 +144,25 @@ async def set_user_mnemonic(
         db.add(UserMnemonic(user_id=user_id, kanji_character=character, mnemonic=mnemonic))
     await db.commit()
     return mnemonic
+
+
+async def list_user_mnemonics(
+    db: AsyncSession, user_id: uuid.UUID, page_params: PageParams
+) -> tuple[list[UserMnemonic], int]:
+    """Return (rows, total) of this user's custom kanji mnemonics, ordered by
+    updated_at descending (most recently edited first). Every row in
+    user_mnemonics already has a non-null mnemonic — set_user_mnemonic
+    deletes the row instead of writing an empty one."""
+    stmt = select(UserMnemonic).where(UserMnemonic.user_id == user_id)
+    count_stmt = select(func.count()).select_from(UserMnemonic).where(UserMnemonic.user_id == user_id)
+
+    total = (await db.execute(count_stmt)).scalar_one()
+
+    stmt = (
+        stmt.order_by(UserMnemonic.updated_at.desc())
+        .offset(page_params.offset)
+        .limit(page_params.page_size)
+    )
+    rows = (await db.execute(stmt)).scalars().all()
+
+    return list(rows), total

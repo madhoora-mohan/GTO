@@ -480,6 +480,59 @@ export interface paths {
         };
         trace?: never;
     };
+    "/users/me/mnemonics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the authenticated user's custom kanji mnemonics
+         * @description Requires auth. Returns only kanji for which the user has written a mnemonic override (via PATCH /kanji/{character}/mnemonic) — not every kanji. Ordered by updated_at descending (most recently edited first).
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Page number (1-indexed) */
+                    page?: components["parameters"]["PageParam"];
+                    /** @description Number of results per page */
+                    page_size?: components["parameters"]["PageSizeParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Paginated list of the user's custom mnemonics */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PaginatedUserMnemonic"];
+                    };
+                };
+                /** @description Missing or expired access token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/vocab": {
         parameters: {
             query?: never;
@@ -835,7 +888,7 @@ export interface paths {
         };
         /**
          * Get a single passage with its questions
-         * @description Public endpoint. No auth required. Fetches passage_text (and furigana_segments/english_translation) from R2, and all questions for the passage ordered by question_order.
+         * @description Requires auth. Fetches passage_text (and furigana_segments/ english_translation) from R2, and all questions for the passage ordered by question_order.
          */
         get: {
             parameters: {
@@ -855,6 +908,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["ReadingPassage"];
+                    };
+                };
+                /** @description Missing or expired access token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
                     };
                 };
                 /** @description Passage not found */
@@ -1487,6 +1549,26 @@ export interface components {
         PaginatedReadingPassage: {
             data: components["schemas"]["ReadingPassage"][];
             /** @example 200 */
+            total: number;
+            /** @example 1 */
+            page: number;
+            /** @example 20 */
+            page_size: number;
+        };
+        UserMnemonic: {
+            /** @example 新 */
+            character: string;
+            /** @example My new axe stands against the tree outside. */
+            user_mnemonic: string;
+            /**
+             * Format: date-time
+             * @example 2026-01-01T00:00:00Z
+             */
+            updated_at: string;
+        };
+        PaginatedUserMnemonic: {
+            data: components["schemas"]["UserMnemonic"][];
+            /** @example 12 */
             total: number;
             /** @example 1 */
             page: number;
