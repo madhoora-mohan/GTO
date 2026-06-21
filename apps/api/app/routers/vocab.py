@@ -9,8 +9,8 @@ from app.core.errors import AppError
 from app.core.pagination import PageParams, page_params
 from app.deps.auth import get_current_user
 from app.models.user import User
-from app.schemas.generated import PaginatedVocab, Sentence, Vocab
-from app.services import vocab_service
+from app.schemas.generated import CrosswordGrid, PaginatedVocab, Sentence, Vocab
+from app.services import crossword_service, vocab_service
 from app.services.practice_service import parse_exclude
 
 router = APIRouter()
@@ -70,6 +70,24 @@ async def get_vocab_practice_batch(
         data.append(vocab.model_dump(mode="json"))
 
     return JSONResponse({"data": data})
+
+
+# NOTE: registered before /{vocab_id} for the same reason as /practice-batch
+# above — static paths must come first.
+@router.get("/crossword", response_model=CrosswordGrid)
+async def get_vocab_crossword(
+    jlpt_level: Literal["N5", "N4", "N3", "N2", "N1"] = Query(...),
+    scope: Literal["exact", "and_below"] = Query(...),
+    distribution: Literal["balanced", "challenge"] = Query(...),
+    _user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CrosswordGrid:
+    """Requires auth (Practice tab requires login). A solved, interlocking
+    crossword grid generated from vocab at this JLPT filter. Returns
+    insufficient=true (not a 4xx) if too few words could be interlocked —
+    an expected outcome of a narrow filter, not an error."""
+    grid = await crossword_service.get_crossword(db, jlpt_level, scope, distribution)
+    return CrosswordGrid(**grid)
 
 
 @router.get("/{vocab_id}", response_model=Vocab)

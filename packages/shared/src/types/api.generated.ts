@@ -757,6 +757,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/vocab/crossword": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an interlocking vocab crossword for a Practice tab session
+         * @description Requires auth (Practice tab requires login). Generates a solved, interlocking crossword grid from vocab words at the requested JLPT filter — hiragana and katakana mixed, no count/type balance requirement. The number of words that fit is determined by the generation algorithm itself, not requested directly. If too few words at this filter can be interlocked (minimum 3), returns a grid with insufficient=true instead of a 4xx — this is an expected, not exceptional, outcome of a narrow JLPT filter.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description The JLPT level this practice session is centered on. */
+                    jlpt_level: components["parameters"]["PracticeJlptLevelParam"];
+                    /** @description "exact" — only jlpt_level. "and_below" — jlpt_level and every easier level (N5 is the floor, so N5 + and_below = N5 only). */
+                    scope: components["parameters"]["PracticeScopeParam"];
+                    /** @description "balanced" — as even a split as possible across every level in range. "challenge" — skewed toward the harder level(s) in range. */
+                    distribution: components["parameters"]["PracticeDistributionParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A solved, interlocking crossword grid */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CrosswordGrid"];
+                    };
+                };
+                /** @description Missing or expired access token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sentences": {
         parameters: {
             query?: never;
@@ -1624,6 +1679,49 @@ export interface components {
         };
         PracticeBatchCloze: {
             data: components["schemas"]["PracticeClozeItem"][];
+        };
+        CrosswordCell: {
+            /** @description 0-indexed row within this grid. */
+            row: number;
+            /** @description 0-indexed column within this grid. */
+            col: number;
+            /** @description True if this cell is not part of any word. */
+            blocked: boolean;
+            /** @description The kana at this cell. Null if blocked. */
+            letter?: string | null;
+            /** @description id(s), into the words array, of the word(s) occupying this cell. A cell where an across and a down word cross has two ids. Empty if blocked. */
+            word_ids?: number[];
+        };
+        CrosswordWordEntry: {
+            /** @description Referenced by CrosswordCell.word_ids. */
+            id: number;
+            /**
+             * @description The correct kana sequence (this vocab word's reading).
+             * @example がっこう
+             */
+            word: string;
+            /**
+             * @description English meaning (first definition) to display as the clue.
+             * @example school
+             */
+            clue: string;
+            /** @description 0-indexed start row. */
+            row: number;
+            /** @description 0-indexed start column. */
+            col: number;
+            /** @enum {string} */
+            direction: "across" | "down";
+        };
+        CrosswordGrid: {
+            /** @description True if there weren't enough mutually-interlocking words available at this JLPT filter to build a puzzle (minimum 3 words). When true, width/height are 0 and cells/words/decoy_kana are all empty — show a "not enough words at this level" state instead of a grid. */
+            insufficient: boolean;
+            width: number;
+            height: number;
+            /** @description One entry per (row, col) in the [0, width) x [0, height) bounding box. */
+            cells: components["schemas"]["CrosswordCell"][];
+            words: components["schemas"]["CrosswordWordEntry"][];
+            /** @description Kana not needed by any answer in this grid, to mix into the picker bank so the puzzle isn't trivially solvable by elimination. */
+            decoy_kana: string[];
         };
         FilePresignInput: {
             /** @example ki-mnemonic.png */

@@ -803,6 +803,90 @@ components:
           items:
             $ref: '#/components/schemas/PracticeClozeItem'
 
+    CrosswordCell:
+      type: object
+      required: [row, col, blocked]
+      properties:
+        row:
+          type: integer
+          description: 0-indexed row within this grid.
+        col:
+          type: integer
+          description: 0-indexed column within this grid.
+        blocked:
+          type: boolean
+          description: True if this cell is not part of any word.
+        letter:
+          type: string
+          nullable: true
+          description: The kana at this cell. Null if blocked.
+        word_ids:
+          type: array
+          items:
+            type: integer
+          description: >
+            id(s), into the words array, of the word(s) occupying this cell.
+            A cell where an across and a down word cross has two ids. Empty
+            if blocked.
+
+    CrosswordWordEntry:
+      type: object
+      required: [id, word, clue, row, col, direction]
+      properties:
+        id:
+          type: integer
+          description: Referenced by CrosswordCell.word_ids.
+        word:
+          type: string
+          description: The correct kana sequence (this vocab word's reading).
+          example: がっこう
+        clue:
+          type: string
+          description: English meaning (first definition) to display as the clue.
+          example: school
+        row:
+          type: integer
+          description: 0-indexed start row.
+        col:
+          type: integer
+          description: 0-indexed start column.
+        direction:
+          type: string
+          enum: [across, down]
+
+    CrosswordGrid:
+      type: object
+      required: [insufficient, width, height, cells, words, decoy_kana]
+      properties:
+        insufficient:
+          type: boolean
+          description: >
+            True if there weren't enough mutually-interlocking words
+            available at this JLPT filter to build a puzzle (minimum 3
+            words). When true, width/height are 0 and cells/words/decoy_kana
+            are all empty — show a "not enough words at this level" state
+            instead of a grid.
+        width:
+          type: integer
+        height:
+          type: integer
+        cells:
+          type: array
+          items:
+            $ref: '#/components/schemas/CrosswordCell'
+          description: One entry per (row, col) in the [0, width) x [0, height) bounding box.
+        words:
+          type: array
+          items:
+            $ref: '#/components/schemas/CrosswordWordEntry'
+        decoy_kana:
+          type: array
+          items:
+            type: string
+          description: >
+            Kana not needed by any answer in this grid, to mix into the
+            picker bank so the puzzle isn't trivially solvable by elimination.
+
     # ── Files (R2 uploads) ───────────────────────────────────
     #
     # Upload flow:
@@ -1491,6 +1575,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PracticeBatchVocab'
+        '401':
+          description: Missing or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /vocab/crossword:
+    get:
+      summary: Get an interlocking vocab crossword for a Practice tab session
+      description: >
+        Requires auth (Practice tab requires login). Generates a solved,
+        interlocking crossword grid from vocab words at the requested JLPT
+        filter — hiragana and katakana mixed, no count/type balance
+        requirement. The number of words that fit is determined by the
+        generation algorithm itself, not requested directly. If too few
+        words at this filter can be interlocked (minimum 3), returns a
+        grid with insufficient=true instead of a 4xx — this is an expected,
+        not exceptional, outcome of a narrow JLPT filter.
+      tags: [vocab]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PracticeJlptLevelParam'
+        - $ref: '#/components/parameters/PracticeScopeParam'
+        - $ref: '#/components/parameters/PracticeDistributionParam'
+      responses:
+        '200':
+          description: A solved, interlocking crossword grid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CrosswordGrid'
         '401':
           description: Missing or expired access token
           content:
