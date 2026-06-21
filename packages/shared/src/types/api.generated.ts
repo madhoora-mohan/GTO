@@ -653,7 +653,7 @@ export interface paths {
         };
         /**
          * Get a single vocabulary word with example sentences
-         * @description Public endpoint. No auth required.
+         * @description Requires auth. List (GET /vocab) stays public.
          */
         get: {
             parameters: {
@@ -677,6 +677,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Vocab"];
+                    };
+                };
+                /** @description Missing or expired access token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
                     };
                 };
                 /** @description Vocab entry not found */

@@ -1528,8 +1528,10 @@ paths:
   /vocab/{id}:
     get:
       summary: Get a single vocabulary word with example sentences
-      description: Public endpoint. No auth required.
+      description: Requires auth. List (GET /vocab) stays public.
       tags: [vocab]
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -1545,6 +1547,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Vocab'
+        '401':
+          description: Missing or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: Vocab entry not found
           content:

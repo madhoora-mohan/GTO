@@ -93,9 +93,11 @@ async def get_vocab_crossword(
 @router.get("/{vocab_id}", response_model=Vocab)
 async def get_vocab(
     vocab_id: str,
+    _user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Vocab:
-    """Public. Returns the vocab entry with up to 10 example sentences (ordered by ID)."""
+    """Requires auth. Returns the vocab entry with up to 10 example sentences
+    (ordered by ID). List (GET /vocab) stays public."""
     row = await vocab_service.get_vocab(db, vocab_id)
     if row is None:
         raise AppError(404, "not_found", f"Vocab '{vocab_id}' not found")
