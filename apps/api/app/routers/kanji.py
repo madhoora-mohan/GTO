@@ -19,8 +19,14 @@ from app.schemas.generated import (
     Sentence,
 )
 from app.services import kanji_service
+from app.services.practice_service import parse_exclude
 
 router = APIRouter()
+
+# Kanji.model_dump fields that only belong on the auth-gated detail view
+# (GET /{character}) or are practice-only — never on the list-shape rows
+# returned by GET / and GET /practice-batch.
+_LIST_SHAPE_EXCLUDE = {"vocab_words", "components", "sentences", "user_mnemonic"}
 
 
 @router.get("", response_model=PaginatedKanji)
@@ -39,16 +45,49 @@ async def list_kanji(
     rows, total = await kanji_service.list_kanji(
         db, page_params, jlpt=jlpt, jlpt_max=jlpt_max, grade=grade, stroke_count=stroke_count
     )
-    _exclude = {"vocab_words", "components", "sentences", "user_mnemonic"}
     return JSONResponse({
         "data": [
-            Kanji.model_validate(row, from_attributes=True).model_dump(mode="json", exclude=_exclude)
+            Kanji.model_validate(row, from_attributes=True).model_dump(
+                mode="json", exclude=_LIST_SHAPE_EXCLUDE
+            )
             for row in rows
         ],
         "total": total,
         "page": page_params.page,
         "page_size": page_params.page_size,
     })
+
+
+# NOTE: registered before /{character} — FastAPI/Starlette match routes in
+# registration order, so this static path must come first or "practice-batch"
+# would be swallowed by the {character} path parameter.
+@router.get("/practice-batch")
+async def get_kanji_practice_batch(
+    jlpt_level: Literal["N5", "N4", "N3", "N2", "N1"] = Query(...),
+    scope: Literal["exact", "and_below"] = Query(...),
+    distribution: Literal["balanced", "challenge"] = Query(...),
+    count: int = Query(default=20, ge=1, le=50),
+    exclude: str | None = Query(default=None),
+    _user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Requires auth (Practice tab requires login). A stateless,
+    ready-to-play batch of kanji for a Practice session, with
+    distractor_meanings attached for MCQ-style games."""
+    excluded_characters = parse_exclude(exclude)
+    rows = await kanji_service.get_practice_batch(
+        db, jlpt_level, scope, distribution, count, excluded_characters
+    )
+
+    data = []
+    for row in rows:
+        distractors = await kanji_service.get_distractor_meanings(db, row)
+        kanji = Kanji.model_validate(row, from_attributes=True).model_copy(
+            update={"distractor_meanings": distractors}
+        )
+        data.append(kanji.model_dump(mode="json", exclude=_LIST_SHAPE_EXCLUDE))
+
+    return JSONResponse({"data": data})
 
 
 @router.get("/{character}", response_model=Kanji)

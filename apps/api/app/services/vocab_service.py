@@ -7,6 +7,7 @@ from app.core.pagination import PageParams
 from app.models.sentence import Sentence
 from app.models.vocab import Vocab
 from app.services.jlpt import JLPT_RANK, jlpt_order
+from app.services.practice_service import level_counts, resolve_levels
 
 _VOCAB_JLPT_ORDER = jlpt_order(Vocab.jlpt)
 
@@ -67,3 +68,82 @@ async def get_sentences(db: AsyncSession, vocab_word: str) -> list[Sentence]:
     )
     rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
+
+
+async def get_practice_batch(
+    db: AsyncSession,
+    jlpt_level: Literal["N1", "N2", "N3", "N4", "N5"],
+    scope: Literal["exact", "and_below"],
+    distribution: Literal["balanced", "challenge"],
+    count: int,
+    exclude: set[str],
+) -> list[Vocab]:
+    """A random, no-duplicate batch of vocab for a Practice session, split
+    across the resolved level range per `distribution`. If a level doesn't
+    have enough rows (after excluding `exclude`) to fill its share, that
+    level's batch is simply smaller — counts are not redistributed."""
+    levels = resolve_levels(jlpt_level, scope)
+    counts = level_counts(levels, distribution, count)
+
+    rows: list[Vocab] = []
+    for level, n in counts.items():
+        if n <= 0:
+            continue
+        stmt = select(Vocab).where(Vocab.jlpt == level)
+        if exclude:
+            stmt = stmt.where(Vocab.id.notin_(exclude))
+        stmt = stmt.order_by(func.random()).limit(n)
+        rows.extend((await db.execute(stmt)).scalars().all())
+
+    return rows
+
+
+async def get_distractor_meanings(db: AsyncSession, vocab: Vocab, count: int = 3) -> list[str]:
+    """Up to `count` distinct definition strings drawn from other vocab at
+    the same jlpt level as `vocab` (or other jlpt-less vocab, if `vocab.jlpt`
+    is None), excluding `vocab`'s own definitions. May return fewer than
+    `count` if the same-level pool is too small."""
+    stmt = select(Vocab.meanings).where(Vocab.id != vocab.id)
+    stmt = (
+        stmt.where(Vocab.jlpt.is_(None)) if vocab.jlpt is None else stmt.where(Vocab.jlpt == vocab.jlpt)
+    )
+    stmt = stmt.order_by(func.random()).limit(count * 10)
+    rows = (await db.execute(stmt)).scalars().all()
+
+    own_definitions = {
+        definition for meaning in vocab.meanings for definition in (meaning.get("definitions") or [])
+    }
+    distractors: list[str] = []
+    for meanings in rows:
+        for meaning in meanings:
+            for definition in meaning.get("definitions") or []:
+                if definition in own_definitions or definition in distractors:
+                    continue
+                distractors.append(definition)
+                if len(distractors) == count:
+                    return distractors
+
+    return distractors
+
+
+async def get_distractor_words(db: AsyncSession, vocab: Vocab, count: int = 3) -> list[str]:
+    """Up to `count` distinct vocab `word` strings drawn from other vocab at
+    the same jlpt level as `vocab` (or other jlpt-less vocab, if `vocab.jlpt`
+    is None), excluding `vocab`'s own word. Used for sentence-cloze MCQ
+    options, which are whole words, not meanings."""
+    stmt = select(Vocab.word).where(Vocab.id != vocab.id, Vocab.word != vocab.word)
+    stmt = (
+        stmt.where(Vocab.jlpt.is_(None)) if vocab.jlpt is None else stmt.where(Vocab.jlpt == vocab.jlpt)
+    )
+    stmt = stmt.order_by(func.random()).limit(count * 5)
+    rows = (await db.execute(stmt)).scalars().all()
+
+    distractors: list[str] = []
+    for word in rows:
+        if word in distractors:
+            continue
+        distractors.append(word)
+        if len(distractors) == count:
+            break
+
+    return distractors

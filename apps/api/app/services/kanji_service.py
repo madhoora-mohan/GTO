@@ -14,6 +14,7 @@ from app.models.sentence import Sentence
 from app.models.user_mnemonic import UserMnemonic
 from app.models.vocab import Vocab
 from app.services.jlpt import JLPT_RANK, jlpt_order
+from app.services.practice_service import level_counts, resolve_levels
 
 # Used by GET /kanji's jlpt_max filter — "this level or easier".
 _KANJI_JLPT_ORDER = jlpt_order(Kanji.jlpt)
@@ -166,3 +167,58 @@ async def list_user_mnemonics(
     rows = (await db.execute(stmt)).scalars().all()
 
     return list(rows), total
+
+
+async def get_practice_batch(
+    db: AsyncSession,
+    jlpt_level: Literal["N1", "N2", "N3", "N4", "N5"],
+    scope: Literal["exact", "and_below"],
+    distribution: Literal["balanced", "challenge"],
+    count: int,
+    exclude: set[str],
+) -> list[Kanji]:
+    """A random, no-duplicate batch of kanji for a Practice session, split
+    across the resolved level range per `distribution`. If a level doesn't
+    have enough rows (after excluding `exclude`) to fill its share, that
+    level's batch is simply smaller — counts are not redistributed."""
+    levels = resolve_levels(jlpt_level, scope)
+    counts = level_counts(levels, distribution, count)
+
+    rows: list[Kanji] = []
+    for level, n in counts.items():
+        if n <= 0:
+            continue
+        stmt = select(Kanji).where(Kanji.jlpt == level)
+        if exclude:
+            stmt = stmt.where(Kanji.character.notin_(exclude))
+        stmt = stmt.order_by(func.random()).limit(n)
+        rows.extend((await db.execute(stmt)).scalars().all())
+
+    return rows
+
+
+async def get_distractor_meanings(db: AsyncSession, kanji: Kanji, count: int = 3) -> list[str]:
+    """Up to `count` distinct meaning strings drawn from other kanji at the
+    same jlpt level as `kanji` (or other jlpt-less kanji, if `kanji.jlpt` is
+    None), excluding `kanji`'s own meanings. May return fewer than `count`
+    if the same-level pool is too small."""
+    stmt = select(Kanji.meanings).where(Kanji.character != kanji.character)
+    stmt = (
+        stmt.where(Kanji.jlpt.is_(None)) if kanji.jlpt is None else stmt.where(Kanji.jlpt == kanji.jlpt)
+    )
+    # Oversample candidates — most rows will contribute a usable meaning,
+    # but some may overlap with kanji's own meanings or each other.
+    stmt = stmt.order_by(func.random()).limit(count * 10)
+    rows = (await db.execute(stmt)).scalars().all()
+
+    own_meanings = set(kanji.meanings)
+    distractors: list[str] = []
+    for meanings in rows:
+        for meaning in meanings:
+            if meaning in own_meanings or meaning in distractors:
+                continue
+            distractors.append(meaning)
+            if len(distractors) == count:
+                return distractors
+
+    return distractors

@@ -480,6 +480,65 @@ export interface paths {
         };
         trace?: never;
     };
+    "/kanji/practice-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a random batch of kanji for a Practice tab session
+         * @description Requires auth (Practice tab requires login). Returns a stateless, ready-to-play batch — no session is stored server-side. Each kanji includes distractor_meanings for MCQ-style games.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description The JLPT level this practice session is centered on. */
+                    jlpt_level: components["parameters"]["PracticeJlptLevelParam"];
+                    /** @description "exact" — only jlpt_level. "and_below" — jlpt_level and every easier level (N5 is the floor, so N5 + and_below = N5 only). */
+                    scope: components["parameters"]["PracticeScopeParam"];
+                    /** @description "balanced" — as even a split as possible across every level in range. "challenge" — skewed toward the harder level(s) in range. */
+                    distribution: components["parameters"]["PracticeDistributionParam"];
+                    /** @description Number of items requested. The actual number returned may be lower if a level in range doesn't have enough rows (after exclude) to fill its share. */
+                    count?: components["parameters"]["PracticeCountParam"];
+                    /** @description Comma-separated list of identifiers (kanji characters, vocab ids, depending on the endpoint) already seen this session, so a top-up call doesn't reintroduce duplicates. */
+                    exclude?: components["parameters"]["PracticeExcludeParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A batch of kanji for practice */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PracticeBatchKanji"];
+                    };
+                };
+                /** @description Missing or expired access token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/me/mnemonics": {
         parameters: {
             query?: never;
@@ -622,6 +681,65 @@ export interface paths {
                 };
                 /** @description Vocab entry not found */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vocab/practice-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a random batch of vocabulary words for a Practice tab session
+         * @description Requires auth (Practice tab requires login). Returns a stateless, ready-to-play batch — no session is stored server-side. Each word includes distractor_meanings for MCQ-style games.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description The JLPT level this practice session is centered on. */
+                    jlpt_level: components["parameters"]["PracticeJlptLevelParam"];
+                    /** @description "exact" — only jlpt_level. "and_below" — jlpt_level and every easier level (N5 is the floor, so N5 + and_below = N5 only). */
+                    scope: components["parameters"]["PracticeScopeParam"];
+                    /** @description "balanced" — as even a split as possible across every level in range. "challenge" — skewed toward the harder level(s) in range. */
+                    distribution: components["parameters"]["PracticeDistributionParam"];
+                    /** @description Number of items requested. The actual number returned may be lower if a level in range doesn't have enough rows (after exclude) to fill its share. */
+                    count?: components["parameters"]["PracticeCountParam"];
+                    /** @description Comma-separated list of identifiers (kanji characters, vocab ids, depending on the endpoint) already seen this session, so a top-up call doesn't reintroduce duplicates. */
+                    exclude?: components["parameters"]["PracticeExcludeParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A batch of vocabulary words for practice */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PracticeBatchVocab"];
+                    };
+                };
+                /** @description Missing or expired access token */
+                401: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -921,6 +1039,67 @@ export interface paths {
                 };
                 /** @description Passage not found */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice/sentence-cloze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a sentence-cloze batch for a Practice tab session
+         * @description Requires auth (Practice tab requires login). Shared game reachable from both the Kanji and Vocab Practice tabs. Each item is a real example sentence with the full target word blanked out (pre-marked with a "___" placeholder server-side) plus 4 options (the correct word and 3 same-JLPT-level distractor words).
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Which entry point triggered this session. "kanji" sources target words from kanji at the requested level (via that kanji's vocabulary); "vocab" sources target words directly from vocab at the requested level. */
+                    source: "kanji" | "vocab";
+                    /** @description The JLPT level this practice session is centered on. */
+                    jlpt_level: components["parameters"]["PracticeJlptLevelParam"];
+                    /** @description "exact" — only jlpt_level. "and_below" — jlpt_level and every easier level (N5 is the floor, so N5 + and_below = N5 only). */
+                    scope: components["parameters"]["PracticeScopeParam"];
+                    /** @description "balanced" — as even a split as possible across every level in range. "challenge" — skewed toward the harder level(s) in range. */
+                    distribution: components["parameters"]["PracticeDistributionParam"];
+                    /** @description Number of items requested. The actual number returned may be lower if a level in range doesn't have enough rows (after exclude) to fill its share. */
+                    count?: components["parameters"]["PracticeCountParam"];
+                    /** @description Comma-separated list of identifiers (kanji characters, vocab ids, depending on the endpoint) already seen this session, so a top-up call doesn't reintroduce duplicates. */
+                    exclude?: components["parameters"]["PracticeExcludeParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A batch of sentence-cloze items for practice */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PracticeBatchCloze"];
+                    };
+                };
+                /** @description Missing or expired access token */
+                401: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1315,6 +1494,8 @@ export interface components {
             sentences?: components["schemas"]["Sentence"][] | null;
             /** @description Up to 20 vocabulary words that contain this kanji, ordered by JLPT level (N5 first, NULL last) then by is_common (common words first), then by vocab id as a stable tie-breaker. Grouped by reading_type on the frontend. Only included on GET /kanji/{character}. Not included in list responses. */
             vocab_words?: components["schemas"]["KanjiVocabEntry"][] | null;
+            /** @description 3 plausible wrong-answer meanings, drawn from other kanji at the same JLPT level as this kanji (or other JLPT-less kanji, if this kanji has no jlpt). Combine with this kanji's own meanings to build a 4-option MCQ. Only included on GET /kanji/practice-batch. Null elsewhere. May contain fewer than 3 entries if the same-level pool is too small. */
+            distractor_meanings?: string[] | null;
         };
         KanjiVocabEntry: {
             /**
@@ -1406,6 +1587,43 @@ export interface components {
             is_common?: boolean | null;
             /** @description Up to 10 example sentences, ordered by sentence ID (ascending). Only included on GET /vocab/{id}. Not included in list responses. */
             sentences?: components["schemas"]["Sentence"][] | null;
+            /** @description 3 plausible wrong-answer meanings, drawn from other vocab at the same JLPT level as this word (or other JLPT-less vocab, if this word has no jlpt). Combine with this word's own meanings to build a 4-option MCQ. Only included on GET /vocab/practice-batch. Null elsewhere. May contain fewer than 3 entries if the same-level pool is too small. */
+            distractor_meanings?: string[] | null;
+        };
+        PracticeBatchKanji: {
+            /** @description List-shape Kanji objects (no components/sentences/vocab_words/ user_mnemonic) plus distractor_meanings. */
+            data: components["schemas"]["Kanji"][];
+        };
+        PracticeBatchVocab: {
+            /** @description List-shape Vocab objects (sentences always null here) plus distractor_meanings. */
+            data: components["schemas"]["Vocab"][];
+        };
+        PracticeClozeItem: {
+            /**
+             * @description The sentence with the target word replaced by a literal "___" placeholder (first occurrence only) — pre-marked server-side so the frontend never needs to search-and-replace the word itself.
+             * @example 新しい___を買わなければならない。
+             */
+            sentence_japanese: string;
+            /** @example I have to buy a new computer. */
+            sentence_english: string;
+            /**
+             * @description The word that was removed from sentence_japanese.
+             * @example パソコン
+             */
+            blanked_word: string;
+            /**
+             * @description 4 options including blanked_word, in randomized order. The other 3 are same-JLPT-level distractor words.
+             * @example [
+             *       "パソコン",
+             *       "テレビ",
+             *       "ラジオ",
+             *       "カメラ"
+             *     ]
+             */
+            options: string[];
+        };
+        PracticeBatchCloze: {
+            data: components["schemas"]["PracticeClozeItem"][];
         };
         FilePresignInput: {
             /** @example ki-mnemonic.png */
@@ -1586,6 +1804,16 @@ export interface components {
         JlptParam: "N5" | "N4" | "N3" | "N2" | "N1";
         /** @description Optional. Filter to this JLPT level or easier (e.g. N3 includes N3, N4, and N5; NULL-jlpt items are excluded). Mutually exclusive with jlpt — providing both is a 422. */
         JlptMaxParam: "N5" | "N4" | "N3" | "N2" | "N1";
+        /** @description The JLPT level this practice session is centered on. */
+        PracticeJlptLevelParam: "N5" | "N4" | "N3" | "N2" | "N1";
+        /** @description "exact" — only jlpt_level. "and_below" — jlpt_level and every easier level (N5 is the floor, so N5 + and_below = N5 only). */
+        PracticeScopeParam: "exact" | "and_below";
+        /** @description "balanced" — as even a split as possible across every level in range. "challenge" — skewed toward the harder level(s) in range. */
+        PracticeDistributionParam: "balanced" | "challenge";
+        /** @description Number of items requested. The actual number returned may be lower if a level in range doesn't have enough rows (after exclude) to fill its share. */
+        PracticeCountParam: number;
+        /** @description Comma-separated list of identifiers (kanji characters, vocab ids, depending on the endpoint) already seen this session, so a top-up call doesn't reintroduce duplicates. */
+        PracticeExcludeParam: string;
     };
     requestBodies: never;
     headers: never;

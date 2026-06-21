@@ -124,6 +124,63 @@ components:
         N4, and N5; NULL-jlpt items are excluded). Mutually exclusive with
         jlpt — providing both is a 422.
 
+    # ── Practice (shared by /kanji/practice-batch, /vocab/practice-batch,
+    #    /practice/sentence-cloze) ──────────────────────────────────────
+
+    PracticeJlptLevelParam:
+      name: jlpt_level
+      in: query
+      required: true
+      schema:
+        type: string
+        enum: [N5, N4, N3, N2, N1]
+      description: The JLPT level this practice session is centered on.
+
+    PracticeScopeParam:
+      name: scope
+      in: query
+      required: true
+      schema:
+        type: string
+        enum: [exact, and_below]
+      description: >
+        "exact" — only jlpt_level. "and_below" — jlpt_level and every easier
+        level (N5 is the floor, so N5 + and_below = N5 only).
+
+    PracticeDistributionParam:
+      name: distribution
+      in: query
+      required: true
+      schema:
+        type: string
+        enum: [balanced, challenge]
+      description: >
+        "balanced" — as even a split as possible across every level in
+        range. "challenge" — skewed toward the harder level(s) in range.
+
+    PracticeCountParam:
+      name: count
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+      description: >
+        Number of items requested. The actual number returned may be lower
+        if a level in range doesn't have enough rows (after exclude) to
+        fill its share.
+
+    PracticeExcludeParam:
+      name: exclude
+      in: query
+      schema:
+        type: string
+      description: >
+        Comma-separated list of identifiers (kanji characters, vocab ids,
+        depending on the endpoint) already seen this session, so a top-up
+        call doesn't reintroduce duplicates.
+
 
   # ───────────────────────────────────────────────────────────
   # SCHEMAS
@@ -504,6 +561,20 @@ components:
             (N5 first, NULL last) then by is_common (common words first), then by
             vocab id as a stable tie-breaker. Grouped by reading_type on the frontend.
             Only included on GET /kanji/{character}. Not included in list responses.
+        distractor_meanings:
+          type: array
+          nullable: true
+          minItems: 3
+          maxItems: 3
+          items:
+            type: string
+          description: >
+            3 plausible wrong-answer meanings, drawn from other kanji at the
+            same JLPT level as this kanji (or other JLPT-less kanji, if this
+            kanji has no jlpt). Combine with this kanji's own meanings to
+            build a 4-option MCQ. Only included on GET /kanji/practice-batch.
+            Null elsewhere. May contain fewer than 3 entries if the same-level
+            pool is too small.
 
     KanjiVocabEntry:
       type: object
@@ -647,6 +718,90 @@ components:
           description: >
             Up to 10 example sentences, ordered by sentence ID (ascending).
             Only included on GET /vocab/{id}. Not included in list responses.
+        distractor_meanings:
+          type: array
+          nullable: true
+          minItems: 3
+          maxItems: 3
+          items:
+            type: string
+          description: >
+            3 plausible wrong-answer meanings, drawn from other vocab at the
+            same JLPT level as this word (or other JLPT-less vocab, if this
+            word has no jlpt). Combine with this word's own meanings to
+            build a 4-option MCQ. Only included on GET /vocab/practice-batch.
+            Null elsewhere. May contain fewer than 3 entries if the same-level
+            pool is too small.
+
+    # ── Practice (Practice tab game mechanics) ─────────────────
+    #
+    # All Practice games are session-only — no score persistence, no
+    # leaderboards. Every endpoint here is a stateless GET that returns a
+    # ready-to-play batch; the frontend manages session state (current
+    # question, running score) entirely client-side. The Practice tab as a
+    # whole requires login, so every endpoint below requires BearerAuth.
+
+    PracticeBatchKanji:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Kanji'
+          description: >
+            List-shape Kanji objects (no components/sentences/vocab_words/
+            user_mnemonic) plus distractor_meanings.
+
+    PracticeBatchVocab:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vocab'
+          description: >
+            List-shape Vocab objects (sentences always null here) plus
+            distractor_meanings.
+
+    PracticeClozeItem:
+      type: object
+      required: [sentence_japanese, sentence_english, blanked_word, options]
+      properties:
+        sentence_japanese:
+          type: string
+          description: >
+            The sentence with the target word replaced by a literal "___"
+            placeholder (first occurrence only) — pre-marked server-side so
+            the frontend never needs to search-and-replace the word itself.
+          example: 新しい___を買わなければならない。
+        sentence_english:
+          type: string
+          example: I have to buy a new computer.
+        blanked_word:
+          type: string
+          description: The word that was removed from sentence_japanese.
+          example: パソコン
+        options:
+          type: array
+          items:
+            type: string
+          minItems: 4
+          maxItems: 4
+          description: >
+            4 options including blanked_word, in randomized order. The other
+            3 are same-JLPT-level distractor words.
+          example: ["パソコン", "テレビ", "ラジオ", "カメラ"]
+
+    PracticeBatchCloze:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PracticeClozeItem'
 
     # ── Files (R2 uploads) ───────────────────────────────────
     #
@@ -1197,6 +1352,36 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
 
+  /kanji/practice-batch:
+    get:
+      summary: Get a random batch of kanji for a Practice tab session
+      description: >
+        Requires auth (Practice tab requires login). Returns a stateless,
+        ready-to-play batch — no session is stored server-side. Each kanji
+        includes distractor_meanings for MCQ-style games.
+      tags: [kanji]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PracticeJlptLevelParam'
+        - $ref: '#/components/parameters/PracticeScopeParam'
+        - $ref: '#/components/parameters/PracticeDistributionParam'
+        - $ref: '#/components/parameters/PracticeCountParam'
+        - $ref: '#/components/parameters/PracticeExcludeParam'
+      responses:
+        '200':
+          description: A batch of kanji for practice
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeBatchKanji'
+        '401':
+          description: Missing or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
   # ── Users ────────────────────────────────────────────────
 
   /users/me/mnemonics:
@@ -1278,6 +1463,36 @@ paths:
                 $ref: '#/components/schemas/Vocab'
         '404':
           description: Vocab entry not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /vocab/practice-batch:
+    get:
+      summary: Get a random batch of vocabulary words for a Practice tab session
+      description: >
+        Requires auth (Practice tab requires login). Returns a stateless,
+        ready-to-play batch — no session is stored server-side. Each word
+        includes distractor_meanings for MCQ-style games.
+      tags: [vocab]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PracticeJlptLevelParam'
+        - $ref: '#/components/parameters/PracticeScopeParam'
+        - $ref: '#/components/parameters/PracticeDistributionParam'
+        - $ref: '#/components/parameters/PracticeCountParam'
+        - $ref: '#/components/parameters/PracticeExcludeParam'
+      responses:
+        '200':
+          description: A batch of vocabulary words for practice
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeBatchVocab'
+        '401':
+          description: Missing or expired access token
           content:
             application/json:
               schema:
@@ -1434,6 +1649,51 @@ paths:
                 $ref: '#/components/schemas/ApiError'
         '404':
           description: Passage not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  # ── Practice (Practice tab game mechanics) ─────────────────
+
+  /practice/sentence-cloze:
+    get:
+      summary: Get a sentence-cloze batch for a Practice tab session
+      description: >
+        Requires auth (Practice tab requires login). Shared game reachable
+        from both the Kanji and Vocab Practice tabs. Each item is a real
+        example sentence with the full target word blanked out (pre-marked
+        with a "___" placeholder server-side) plus 4 options (the correct
+        word and 3 same-JLPT-level distractor words).
+      tags: [practice]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: source
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [kanji, vocab]
+          description: >
+            Which entry point triggered this session. "kanji" sources target
+            words from kanji at the requested level (via that kanji's
+            vocabulary); "vocab" sources target words directly from vocab
+            at the requested level.
+        - $ref: '#/components/parameters/PracticeJlptLevelParam'
+        - $ref: '#/components/parameters/PracticeScopeParam'
+        - $ref: '#/components/parameters/PracticeDistributionParam'
+        - $ref: '#/components/parameters/PracticeCountParam'
+        - $ref: '#/components/parameters/PracticeExcludeParam'
+      responses:
+        '200':
+          description: A batch of sentence-cloze items for practice
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeBatchCloze'
+        '401':
+          description: Missing or expired access token
           content:
             application/json:
               schema:
